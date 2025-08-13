@@ -63,14 +63,14 @@ Rapy não é apenas um bot — é um novo membro do seu grupo. Ela **analisa, en
 
 ```bash
 # Clone o repositório
-git clone https://github.com/oKauaDev/rapy.git
-cd rapy
+git clone https://github.com/nielgomes/pacoca/.git
+cd pacoca
 
-# Instale as dependências
-npm install
+# Crie o container
+docker compose up --build -d
 
 # Configure o .env
-echo "OPENAI_API_KEY=sua_chave_aqui" > .env
+echo "OPENROUTER_API_KEY=sua_chave_aqui" > .env
 
 # Execute o projeto
 npm run dev      # Modo desenvolvimento
@@ -83,7 +83,7 @@ npm start        # Executar em produção
 ## <img src="./stickers/entediado.webp" width="20"/> Variáveis de Ambiente
 
 ```env
-OPENAI_API_KEY=sua_chave_da_openai
+OPENROUTER_API_KEY=sua_chave_da_openrouter
 NODE_ENV=development # ou production
 ```
 
