@@ -1,4 +1,4 @@
-#Passo 1: Obter o QR Code
+# Passo 1: Obter o QR Code
 
 O aplicativo, ao ser iniciado, irá gerar um QR Code no log para que você possa autenticar a sessão. Para visualizá-lo, use o seguinte comando:
 Bash
@@ -7,7 +7,7 @@ docker logs pacoca-container
 
 Você deverá ver a saída do seu aplicativo, que irá gerar um QR Code diretamente no seu terminal.
 
-#Passo 2: Conectar o WhatsApp
+# Passo 2: Conectar o WhatsApp
 
     Com o QR Code visível no seu terminal, pegue seu celular.
 
@@ -19,11 +19,11 @@ Você deverá ver a saída do seu aplicativo, que irá gerar um QR Code diretame
 
 Após escanear, o log no terminal irá mudar, mostrando mensagens como "Cliente está pronto!" ou algo similar. Isso confirma que a conexão foi um sucesso.
 
-#Passo 3: Testar o Bot!
+# Passo 3: Testar o Bot!
 
 Vou te guiar detalhadamente, desde o uso básico em uma conversa privada até a interação em grupo.
 
-###Parte 1: Usando o Bot em uma Conversa Privada
+### Parte 1: Usando o Bot em uma Conversa Privada
 
 Esta é a forma mais simples de interagir. O bot funcionará como um contato pessoal com uma superinteligência artificial por trás.
 
@@ -45,7 +45,7 @@ Esta é a forma mais simples de interagir. O bot funcionará como um contato pes
 
         "Qual a sua opinião sobre o último episódio daquela série?" (Lembre-se que o conhecimento dele é limitado à data de treinamento do modelo).
 
-###Parte 2: Adicionando o Bot a um Grupo
+### Parte 2: Adicionando o Bot a um Grupo
 
 É aqui que o Paçoca realmente brilha, pois ele foi projetado para observar e interagir com múltiplos participantes.
 
@@ -63,7 +63,7 @@ Esta é a forma mais simples de interagir. O bot funcionará como um contato pes
 
         Nota: Dependendo das configurações de privacidade do grupo, talvez apenas administradores possam adicionar novos participantes.
 
-###Parte 3: Interagindo com o Bot em um Grupo
+### Parte 3: Interagindo com o Bot em um Grupo
 
 Uma vez no grupo, o bot entra em modo de "observador social". Ele lê todas as mensagens para entender o contexto, as personalidades e os tópicos da conversa.
 
