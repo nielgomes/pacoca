@@ -13,7 +13,7 @@ RUN npm install
 # Copia todo o resto do código-fonte e arquivos de mídia
 COPY . .
 
-# Compila o TypeScript para JavaScript, criando a pasta /dist
+# Compila o TypeScript para JavaScript, criando a pasta /dist em Produção
 RUN npm run build
 
 # Define o comando para iniciar a aplicação
