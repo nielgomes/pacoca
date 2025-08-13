@@ -1,0 +1,18 @@
+services:
+  # Nome do serviço da nossa aplicação
+  pacoca:
+    # Instrui o compose a construir a imagem a partir do Dockerfile no diretório atual (.)
+    build: .
+    # Nome da imagem que será construída
+    image: pacoca-app
+    # Nome do contêiner que será criado
+    container_name: pacoca-container
+    # Reinicia o contêiner automaticamente em caso de falha
+    restart: unless-stopped
+    # Carrega as variáveis de ambiente de um arquivo .env na raiz do projeto
+    env_file:
+      - .env
+    # Mapeia um volume para persistir a sessão do WhatsApp
+    # Isso evita que você tenha que escanear o QR Code toda vez que o contêiner for reiniciado
+    volumes:
+      - ./whatsapp_session:/usr/src/app/whatsapp_session

@@ -8,3 +8,4 @@ async function main() {
 }
 
 main();
+export { default as generateResponse } from "./inteligence/generateResponse";

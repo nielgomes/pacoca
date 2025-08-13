@@ -139,7 +139,7 @@ class BeautifulLogger {
     const blue = "\x1b[44m\x1b[37m";
     const cyan = "\x1b[36m";
 
-    console.log(`\n${blue} 🤖 RAPY AI ${reset}`);
+    console.log(`\n${blue} 🤖 PAÇOCA AI ${reset}`);
     console.log(
       `${cyan}${icon} ${step.toUpperCase()}${reset} ${typeof details === "string" ? details : ""}`
     );

@@ -1,5 +1,5 @@
 import POSSIBLE_RESPONSE_PROMPT from "../constants/POSSIBLE_RESPONSE_PROMPT";
-import openai from "../services/openai";
+import { openai } from "../services/openai";
 import { Data } from "../utils/database";
 import { Message } from "./generateResponse";
 

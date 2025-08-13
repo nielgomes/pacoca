@@ -1,5 +1,5 @@
 import { ChatCompletionMessageParam } from "openai/resources";
-import openai from "../services/openai";
+import { openai } from "../services/openai";
 import { Data } from "../utils/database";
 import SUMMARY_PROMPT from "../constants/SUMMARY_PROMPT";
 
