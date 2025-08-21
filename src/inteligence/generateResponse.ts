@@ -55,6 +55,7 @@ export type GenerateResponseResult = {
 // ATUALIZAÇÃO: Alterado para o modelo gratuito DeepSeek da OpenRouter.
 const MODEL_NAME = "deepseek/deepseek-r1-0528:free";
 const MODEL_PRICING = {
+  // Geralmente informado em USD$ por Milhão de tokens
   // O modelo é gratuito, então o custo é zero.
   input: 0,
   output: 0,

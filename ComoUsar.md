@@ -1,4 +1,36 @@
-# Passo 1: Obter o QR Code
+# Como gerenciar qual o modelo vc vai utilizar com o Paçoca?
+
+### 1- Criar um arquivo .env:
+
+Criar um arquivo .env contendo:
+```
+OPENROUTER_API_KEY="sua chave de API"
+
+# (Opcional, mas recomendado) O nome do seu app para identificação nos headers
+APP_NAME="paçoca"
+# (Opcional, mas recomendado) A URL do seu site ou repositório
+APP_URL="https://github.com/seu user/seu projeto"
+
+NODE_ENV=development # ou production
+```
+### 2- Gerenciando o modelo:
+
+No arquivo `src/inteligence/generateResponse.ts` procure pela parte do script abaixo e altere conforme o modelo que você escolher usar:
+```
+// --- Constantes Centralizadas ---
+// ATUALIZAÇÃO: Alterado para o modelo gratuito DeepSeek da OpenRouter.
+const MODEL_NAME = "deepseek/deepseek-r1-0528:free";
+const MODEL_PRICING = {
+  // Geralmente informado em USD$ por Milhão de tokens
+  // O modelo é gratuito, então o custo é zero.
+  input: 0,
+  output: 0,
+};
+```
+
+# Como interagir com o Paçoca?
+
+## Passo 1: Obter o QR Code
 
 O aplicativo, ao ser iniciado, irá gerar um QR Code no log para que você possa autenticar a sessão. Para visualizá-lo, use o seguinte comando:
 Bash
@@ -7,7 +39,7 @@ docker logs pacoca-container
 
 Você deverá ver a saída do seu aplicativo, que irá gerar um QR Code diretamente no seu terminal.
 
-# Passo 2: Conectar o WhatsApp
+## Passo 2: Conectar o WhatsApp
 
     Com o QR Code visível no seu terminal, pegue seu celular.
 
@@ -19,7 +51,7 @@ Você deverá ver a saída do seu aplicativo, que irá gerar um QR Code diretame
 
 Após escanear, o log no terminal irá mudar, mostrando mensagens como "Cliente está pronto!" ou algo similar. Isso confirma que a conexão foi um sucesso.
 
-# Passo 3: Testar o Bot!
+## Passo 3: Testar o Bot!
 
 Vou te guiar detalhadamente, desde o uso básico em uma conversa privada até a interação em grupo.
 
