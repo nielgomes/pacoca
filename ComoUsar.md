@@ -27,6 +27,15 @@ const MODEL_PRICING = {
   output: 0,
 };
 ```
+# Como testar em desenvolvimento?
+
+O arquivo `test-ai.mjs` é o responsável por simular um grupo de Whatsapp para vermos como o Paçoca está se comportanto. 
+
+* Suba o container com o comando `docker compose up --build -d`
+* Depois execute o comando:
+```
+docker exec -it pacoca-container /bin/sh -c "node test-ai.mjs" 
+```
 
 # Como interagir com o Paçoca?
 

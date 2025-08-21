@@ -13,7 +13,7 @@ const mockData = {
 };
 const mockMessages = [
   { name: "Bia", content: "Gente, vamos ver quem é inteligente... Quem sabe o que é um buraco de minhoca na astrofísica?", ia: false, jid: "123" },
-  { name: "Leo", content: "Ah, não... Só conheço as minhocas que ficam debaixo da terra.", ia: false, jid: "456" },
+  { name: "Leo", content: "Ah, não... Só conheço as minhocas que ficam debaixo da terra. O @Paçoca me disse q sabe o que é isso...", ia: false, jid: "456" },
   { name: "Bia", content: "Nossa, Leo, você só pensa em pescar! Bora aprender coisas novas kkkk.", ia: false, jid: "123" }
 ];
 
