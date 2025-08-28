@@ -222,7 +222,7 @@ export default async function generateResponse(
 
   const outputTokens = calculateTokens(content);
   const totalTokens = inputTokens + outputTokens;
-  const cost = 0; // Custo é zero para este modelo
+  const cost = (inputTokens * config.MODEL_PRICING.input / 100000 / 2) + (outputTokens * config.MODEL_PRICING.output / 100000 / 2);
 
   beautifulLogger.aiGeneration("cost", {
     "modelo utilizado": config.MODEL_NAME,
