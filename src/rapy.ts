@@ -14,6 +14,8 @@ let messages: Message = [];
 let lastRapyResponseTime = 0;
 const messagesIds = new Map<string, string>();
 let silenced = false;
+const privateChatActivity = new Map<string, number>();
+const CONVERSATION_TIMEOUT = 5 * 60 * 1000; // 5 minutos em milissegundos
 
 export default async function rapy(whatsapp: Whatsapp) {
   const db = database();
@@ -23,15 +25,40 @@ export default async function rapy(whatsapp: Whatsapp) {
   whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     if (type !== "text") return;
     const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
-    if (!content || !senderInfo) return;
+
+    // Verificamos se é um grupo pelo ID da sessão
+    const isGroup = sessionId.endsWith('@g.us');
+
+    // --- INÍCIO DA NOVA LÓGICA DE TIMEOUT ---
+    if (!isGroup) {
+      const now = Date.now();
+      const lastActivity = privateChatActivity.get(sessionId) || 0;
+
+      // Verifica se a conversa está inativa há mais de 5 minutos
+      if (now - lastActivity > CONVERSATION_TIMEOUT) {
+        beautifulLogger.info("CONTEXTO", `Conversa com ${sessionId} reiniciada por inatividade.`);
+        // Limpa as mensagens antigas desta conversa específica para começar do zero
+        messages = messages.filter(m => m.jid !== sessionId && m.jid !== ""); // Mantém mensagens de grupo e as próprias respostas do bot
+      }
+      // Atualiza o timer da conversa para o momento atual
+      privateChatActivity.set(sessionId, now);
+    }
+    // --- FIM DA NOVA LÓGICA DE TIMEOUT ---    
+
+    // Se não tivermos conteúdo, ou se for um grupo mas não tivermos os dados do participante, ignoramos.
+    if (!content || (isGroup && !senderInfo)) {
+      beautifulLogger.warn("HANDLER", "Mensagem ignorada: sem conteúdo ou dados do remetente em grupo.");
+      return;
+    }
+
+    // Definimos o JID e o Nome do remetente de forma segura
+    const senderJid = isGroup ? senderInfo!.jid : sessionId;
+    const senderName = isGroup ? senderInfo!.name : msg.pushName || "Desconhecido";
     const messageId = msg.key.id;
 
     const silence = await silenceRapy(whatsapp, sessionId, msg, messages, silenced);
     silenced = silence?.silenced;
     messages.push(...(silence?.messages || []));
-
-    const senderJid = senderInfo.jid;
-    const senderName = senderInfo.name || "Desconhecido";
 
     const currentTime = Date.now();
 
@@ -41,12 +68,11 @@ export default async function rapy(whatsapp: Whatsapp) {
       recentMessageTimes.shift();
     }
 
+    const curtMessageId = (messagesIds.size + Math.floor(Math.random() * 1000)).toString();
+    messagesIds.set(curtMessageId, messageId ?? "");
+
     const threeMinutesAgo = currentTime - 3 * 60 * 1000;
     recentMessageTimes = recentMessageTimes.filter((time) => time > threeMinutesAgo);
-
-    const curtMessageId = (messagesIds.values.length + Math.floor(Math.random() * 1000)).toString();
-
-    messagesIds.set(curtMessageId, messageId ?? "");
 
     messages.push({
       content: `(${senderName}{userid: ${senderJid} (messageid: ${curtMessageId})}): ${content}`,
@@ -77,7 +103,7 @@ export default async function rapy(whatsapp: Whatsapp) {
       );
     }
 
-    const isRapyMentioned = content.toLowerCase().includes("rapy");
+    const isRapyMentioned = content.toLowerCase().includes("rapy") || content.toLowerCase().includes("paçoca");
     const isGroupActive = () => {
       if (recentMessageTimes.length < 4) return "normal";
 
@@ -280,6 +306,12 @@ export default async function rapy(whatsapp: Whatsapp) {
 
           await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
         }
+        // Se a resposta foi em um chat privado, atualize o timer de atividade
+        if (!isGroup) {
+            privateChatActivity.set(sessionId, Date.now());
+            beautifulLogger.info("TIMER", `Timer de atividade para ${sessionId} atualizado após resposta.`);
+        }
+        lastRapyResponseTime = Date.now();
       } catch (error) {
         beautifulLogger.error("GERAÇÃO", "Erro ao gerar resposta", error);
       } finally {
@@ -290,8 +322,8 @@ export default async function rapy(whatsapp: Whatsapp) {
       }
     };
 
-    if (isRapyMentioned) {
-      beautifulLogger.info("TRIGGER", "Rapy foi mencionado - processando imediatamente");
+    if (isRapyMentioned || !isGroup) { // Agora também responde se não for um grupo
+      beautifulLogger.info("TRIGGER", isGroup ? "Paçoca foi mencionado" : "Mensagem privada recebida", "- processando imediatamente");
       await processResponse();
     } else {
       const debounceTime = getDebounceTime();
@@ -303,5 +335,5 @@ export default async function rapy(whatsapp: Whatsapp) {
     }
   });
 
-  await whatsapp.init();
+  await whatsapp.connect();
 }

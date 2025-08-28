@@ -10,6 +10,8 @@ COPY package*.json ./
 # Instala TODAS as dependências (dev e produção)
 RUN npm install
 
+#RUN npm install @whiskeysockets/baileys@latest
+
 # Copia todo o resto do código-fonte e arquivos de mídia
 COPY . .
 
