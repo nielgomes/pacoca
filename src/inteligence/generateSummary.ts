@@ -2,6 +2,7 @@ import { ChatCompletionMessageParam } from "openai/resources";
 import { openai } from "../services/openai";
 import { Data } from "../utils/database";
 import SUMMARY_PROMPT from "../constants/SUMMARY_PROMPT";
+import config from '../../model.json';
 
 export type Message = {
   content: string;
@@ -113,7 +114,7 @@ export default async function generateSummary(
   const contextData = formatDataForPrompt(data);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4.1-nano",
+    model: config.MODEL_NAME,
     messages: [
       { role: "system", content: SUMMARY_PROMPT },
       {

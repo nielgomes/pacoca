@@ -7,6 +7,7 @@ import { Data } from "../utils/database";
 import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
 import getHomeDir from "../utils/getHomeDir";
 import beautifulLogger from "../utils/beautifulLogger";
+import config from '../../model.json';
 
 // --- Tipos Unificados ---
 export type Action = {
@@ -53,12 +54,12 @@ export type GenerateResponseResult = {
 
 // --- Constantes Centralizadas ---
 // ATUALIZAÇÃO: Alterado para o modelo gratuito DeepSeek da OpenRouter.
-const MODEL_NAME = "deepseek/deepseek-r1-0528:free";
+const MODEL_NAME = config.MODEL_NAME;
 const MODEL_PRICING = {
   // Geralmente informado em USD$ por Milhão de tokens
   // O modelo é gratuito, então o custo é zero.
-  input: 0,
-  output: 0,
+  input: config.MODEL_PRICING.input,
+  output: config.MODEL_PRICING.output,
 };
 
 /**
@@ -224,6 +225,7 @@ export default async function generateResponse(
   const cost = 0; // Custo é zero para este modelo
 
   beautifulLogger.aiGeneration("cost", {
+    "modelo utilizado": config.MODEL_NAME,
     "tokens entrada (est.)": inputTokens,
     "tokens saída (est.)": outputTokens,
     "tokens total (est.)": totalTokens,

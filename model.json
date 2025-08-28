@@ -1,0 +1,7 @@
+{
+  "MODEL_NAME": "deepseek/deepseek-r1-0528:free",
+  "MODEL_PRICING": {
+    "input": 0,
+    "output": 0
+  }
+}

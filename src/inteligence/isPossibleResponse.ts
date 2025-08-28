@@ -2,6 +2,7 @@ import POSSIBLE_RESPONSE_PROMPT from "../constants/POSSIBLE_RESPONSE_PROMPT";
 import { openai } from "../services/openai";
 import { Data } from "../utils/database";
 import { Message } from "./generateResponse";
+import config from '../../model.json';
 
 export default async function isPossibleResponse(data: Data, messages: Message) {
   const messagesMaped: string = messages
@@ -64,7 +65,7 @@ export default async function isPossibleResponse(data: Data, messages: Message) 
   };
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4.1-nano",
+    model: config.MODEL_NAME,
     messages: [
       { role: "system", content: POSSIBLE_RESPONSE_PROMPT },
       {
