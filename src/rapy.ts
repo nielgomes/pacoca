@@ -11,6 +11,7 @@ import beautifulLogger from "./utils/beautifulLogger";
 import silenceRapy from "./inteligence/silenceRapy";
 
 let messages: Message = [];
+const privateMessages = new Map<string, Message[]>();
 let lastRapyResponseTime = 0;
 const messagesIds = new Map<string, string>();
 let silenced = false;
@@ -22,48 +23,48 @@ export default async function rapy(whatsapp: Whatsapp) {
   let isGenerating = false;
   let recentMessageTimes: number[] = [];
 
-  whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
+whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     if (type !== "text") return;
     const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
-
-    // Verificamos se é um grupo pelo ID da sessão
     const isGroup = sessionId.endsWith('@g.us');
 
-    // --- INÍCIO DA NOVA LÓGICA DE TIMEOUT ---
     if (!isGroup) {
       const now = Date.now();
       const lastActivity = privateChatActivity.get(sessionId) || 0;
-
-      // Verifica se a conversa está inativa há mais de 5 minutos
       if (now - lastActivity > CONVERSATION_TIMEOUT) {
-        beautifulLogger.info("CONTEXTO", `Conversa com ${sessionId} reiniciada por inatividade.`);
-        // Limpa as mensagens antigas desta conversa específica para começar do zero
-        messages = messages.filter(m => m.jid !== sessionId && m.jid !== ""); // Mantém mensagens de grupo e as próprias respostas do bot
+        beautifulLogger.info("CONTEXTO", `Conversa privada com ${sessionId} reiniciada por inatividade.`);
+        privateMessages.set(sessionId, []); // Limpa a memória daquela conversa específica
       }
-      // Atualiza o timer da conversa para o momento atual
       privateChatActivity.set(sessionId, now);
     }
-    // --- FIM DA NOVA LÓGICA DE TIMEOUT ---    
 
-    // Se não tivermos conteúdo, ou se for um grupo mas não tivermos os dados do participante, ignoramos.
     if (!content || (isGroup && !senderInfo)) {
-      beautifulLogger.warn("HANDLER", "Mensagem ignorada: sem conteúdo ou dados do remetente em grupo.");
       return;
     }
 
-    // Definimos o JID e o Nome do remetente de forma segura
     const senderJid = isGroup ? senderInfo!.jid : sessionId;
     const senderName = isGroup ? senderInfo!.name : msg.pushName || "Desconhecido";
     const messageId = msg.key.id;
 
-    const silence = await silenceRapy(whatsapp, sessionId, msg, messages, silenced);
+    // --- LÓGICA DE SEPARAÇÃO DE CONTEXTO ---
+    // Selecionamos qual array de mensagens usar com base no tipo de chat.
+    const currentMessages = isGroup ? messages : (privateMessages.get(sessionId) || []);
+    // -----------------------------------------
+
+    const silence = await silenceRapy(whatsapp, sessionId, msg, currentMessages, silenced);
     silenced = silence?.silenced;
-    messages.push(...(silence?.messages || []));
+
+    if (silence) {
+        // Atualiza a memória correta após a ação de silenciar/dessilenciar
+        if (isGroup) {
+            messages = silence.messages;
+        } else {
+            privateMessages.set(sessionId, silence.messages);
+        }
+    }
 
     const currentTime = Date.now();
-
     recentMessageTimes.push(currentTime);
-
     if (recentMessageTimes.length > 10) {
       recentMessageTimes.shift();
     }
@@ -71,32 +72,34 @@ export default async function rapy(whatsapp: Whatsapp) {
     const curtMessageId = (messagesIds.size + Math.floor(Math.random() * 1000)).toString();
     messagesIds.set(curtMessageId, messageId ?? "");
 
-    const threeMinutesAgo = currentTime - 3 * 60 * 1000;
-    recentMessageTimes = recentMessageTimes.filter((time) => time > threeMinutesAgo);
-
-    messages.push({
+    const newMessage: Message[0] = {
       content: `(${senderName}{userid: ${senderJid} (messageid: ${curtMessageId})}): ${content}`,
       name: senderName,
       jid: senderJid,
       ia: false,
-    });
+    };
 
-    messages.slice(-3).forEach((msg, i) => {
-      console.log(`  ${i + 1}: ${msg.content.substring(0, 80)}...`);
-    });
+    // Adiciona a nova mensagem à memória correta
+    currentMessages.push(newMessage);
+    if(isGroup) {
+        messages = currentMessages;
+    } else {
+        privateMessages.set(sessionId, currentMessages);
+    }
 
     if (silenced) return;
     if (isGenerating) return;
     if (content.length > 300) return;
 
-    if (messages.length > 10) {
+    if (isGroup && messages.length > 10) {
+      // A lógica de resumo só faz sentido para grupos com contexto compartilhado
       debounce(
         async () => {
           const summary = await generateSummary(db.getAll(), messages);
           db.set("summary", summary.summary);
           db.set("opinions", summary.opinions);
           db.save();
-          messages = [];
+          messages = []; // Limpa a memória do grupo após resumir
         },
         1000 * 60 * 5,
         "debounce-summary"
@@ -169,7 +172,9 @@ export default async function rapy(whatsapp: Whatsapp) {
         beautifulLogger.success("POSSIBILIDADE", "Resposta aprovada por: " + reason);
         await whatsapp.setTyping(sessionId);
 
-        const result = await generateResponse(db.getAll(), messages);
+        // Passamos a memória correta para a IA.
+        const result = await generateResponse(db.getAll(), currentMessages);
+        // -----------------------------------------
         const response = result.actions;
 
         try {
@@ -303,9 +308,18 @@ export default async function rapy(whatsapp: Whatsapp) {
               telefone: action.contact.cell,
             });
           }
-
+            const botMessageContent = action.message ? `(Paçoca): ${action.message.text}` : `(Paçoca): <enviou uma mídia>`;
+            const botMessage: Message[0] = { content: botMessageContent, name: "Paçoca", jid: "", ia: true };
+            // Adiciona a resposta do bot à memória correta
+            currentMessages.push(botMessage);
           await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
         }
+        // Se a conversa for em grupo, atualiza a memória de mensagens do grupo
+        if(isGroup) {
+            messages = currentMessages;
+        } else {
+            privateMessages.set(sessionId, currentMessages);
+        }        
         // Se a resposta foi em um chat privado, atualize o timer de atividade
         if (!isGroup) {
             privateChatActivity.set(sessionId, Date.now());
@@ -315,6 +329,7 @@ export default async function rapy(whatsapp: Whatsapp) {
       } catch (error) {
         beautifulLogger.error("GERAÇÃO", "Erro ao gerar resposta", error);
       } finally {
+        isGenerating = false;
         await whatsapp.setOnline(sessionId);
         isGenerating = false;
         beautifulLogger.success("FINALIZAÇÃO", "Processo de resposta finalizado");
