@@ -179,9 +179,19 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
 
         try {
           const l = log();
+          // O novo log.ts espera um objeto com 'input' e 'output'.
+          // Vamos formatar a saída da IA de forma legível.
+          const outputText = response.map(action => {
+            if (action.message) return `[MENSAGEM] ${action.message.text}`;
+            if (action.sticker) return `[STICKER] ${action.sticker}`;
+            if (action.audio) return `[AUDIO] ${action.audio}`;
+            if (action.meme) return `[MEME] ${action.meme}`;
+            return `[AÇÃO] ${action.type}`;
+          }).join('\n');
+        
           l.add({
             input: messages[messages.length - 1].content,
-            output: JSON.stringify(response, null, 2),
+            output: outputText,
           });
           l.save();
           beautifulLogger.success("LOG", "Interação salva no arquivo de log");
