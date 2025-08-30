@@ -10,7 +10,7 @@ import isPossibleResponse from "./inteligence/isPossibleResponse";
 import beautifulLogger from "./utils/beautifulLogger";
 import silenceRapy from "./inteligence/silenceRapy";
 
-let messages: Message = [];
+let messages: Message[] = [];
 const privateMessages = new Map<string, Message[]>();
 let lastRapyResponseTime = 0;
 const messagesIds = new Map<string, string>();
@@ -134,6 +134,11 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     const processResponse = async () => {
       const timeSinceLastResponse = Date.now() - lastRapyResponseTime;
       const minTimeBetweenResponses = isGroupActive() === "very_active" ? 15 * 1000 : 8 * 1000;
+
+      if (timeSinceLastResponse < minTimeBetweenResponses && !isRapyMentioned && isGroup) {
+        return;
+      }
+
       const activity = isGroupActive();
 
       beautifulLogger.groupActivity(activity, {
@@ -161,7 +166,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
       isGenerating = true;
       try {
         beautifulLogger.separator("VERIFICAÇÃO DE POSSIBILIDADE");
-        const { possible, reason } = await isPossibleResponse(db.getAll(), messages);
+        const { possible, reason } = await isPossibleResponse(db.getAll(), currentMessages);
 
         if (!possible) {
           beautifulLogger.warn("POSSIBILIDADE", "Resposta não é apropriada por: " + reason);
@@ -179,9 +184,10 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
 
         try {
           const l = log();
+          const lastMessage = currentMessages.filter(m => !m.ia).at(-1)?.content || "N/A";
           // O novo log.ts espera um objeto com 'input' e 'output'.
           // Vamos formatar a saída da IA de forma legível.
-          const outputText = response.map(action => {
+          /*const outputText = response.map(action => {
             if (action.message) return `[MENSAGEM] ${action.message.text}`;
             if (action.sticker) return `[STICKER] ${action.sticker}`;
             if (action.audio) return `[AUDIO] ${action.audio}`;
@@ -193,6 +199,13 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
             input: messages[messages.length - 1].content,
             output: outputText,
           });
+          l.save();
+          beautifulLogger.success("LOG", "Interação salva no arquivo de log");
+        } catch (error) {
+          beautifulLogger.error("LOG", "Erro ao salvar log", error);
+        } */
+          const outputText = response.map(action => action.message?.text || `<${action.type}>`).join('\n');
+          l.add({ input: lastMessage, output: outputText });
           l.save();
           beautifulLogger.success("LOG", "Interação salva no arquivo de log");
         } catch (error) {
@@ -319,10 +332,13 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
             });
           }
             const botMessageContent = action.message ? `(Paçoca): ${action.message.text}` : `(Paçoca): <enviou uma mídia>`;
-            const botMessage: Message[0] = { content: botMessageContent, name: "Paçoca", jid: "", ia: true };
+            const botMessage: Message[0] = {
+              content: `(Paçoca): ${action.message?.text || `<enviou ${action.type}>`}`,
+              name: "Paçoca", jid: "", ia: true,
+            };
             // Adiciona a resposta do bot à memória correta
             currentMessages.push(botMessage);
-          await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
+            await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
         }
         // Se a conversa for em grupo, atualiza a memória de mensagens do grupo
         if(isGroup) {
@@ -335,13 +351,15 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
             privateChatActivity.set(sessionId, Date.now());
             beautifulLogger.info("TIMER", `Timer de atividade para ${sessionId} atualizado após resposta.`);
         }
+
         lastRapyResponseTime = Date.now();
+
       } catch (error) {
         beautifulLogger.error("GERAÇÃO", "Erro ao gerar resposta", error);
       } finally {
         isGenerating = false;
         await whatsapp.setOnline(sessionId);
-        isGenerating = false;
+        
         beautifulLogger.success("FINALIZAÇÃO", "Processo de resposta finalizado");
         beautifulLogger.separator("FIM");
       }

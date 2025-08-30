@@ -115,14 +115,22 @@ export default class Whatsapp {
 
     for (const msg of messages) {
       // --- PONTO DE DEBUG 2: ELE ESCUTOU ALGUMA COISA? ---
-      //const messageContent = extractMessageContent(msg.message);
-      //let textContent = " (não é uma mensagem de texto)";
-      //if (messageContent?.conversation) {
-      //  textContent = `: "${messageContent.conversation}"`;
-      //} else if (messageContent?.extendedTextMessage) {
-      //  textContent = `: "${messageContent.extendedTextMessage.text}"`;
-      //}
-      //console.log(`📬 Mensagem recebida de ${msg.key.remoteJid}${textContent}`);
+      /*const messageContent = extractMessageContent(msg.message);
+      let textContent = " (não é uma mensagem de texto)";
+      if (messageContent?.conversation) {
+        textContent = `: "${messageContent.conversation}"`;
+      } else if (messageContent?.extendedTextMessage) {
+        textContent = `: "${messageContent.extendedTextMessage.text}"`;
+      }
+      console.log(`📬 Mensagem recebida de ${msg.key.remoteJid}${textContent}`);
+      */
+      /*Força uma atualização de presença para o remetente da mensagem.
+        Isso age como um "handshake", garantindo que a sessão criptográfica seja
+        estabelecida corretamente antes de tentarmos enviar uma resposta. */
+
+      const sessionId = msg.key.remoteJid;
+      if (!sessionId) continue;
+      await this.sock!.sendPresenceUpdate('available', sessionId);
 
       if (this.presence === "unavailable") {
         await this.sock!.sendPresenceUpdate("available");
@@ -131,7 +139,6 @@ export default class Whatsapp {
       }
       this.debaunceOffline();
 
-      const sessionId = msg.key.remoteJid;
       const content = msg.message as WAMessageContent;
       if (!content || !sessionId) continue;
 
