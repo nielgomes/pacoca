@@ -9,6 +9,7 @@ import log from "./utils/log";
 import isPossibleResponse from "./inteligence/isPossibleResponse";
 import beautifulLogger from "./utils/beautifulLogger";
 import silenceRapy from "./inteligence/silenceRapy";
+import generateSearchResponse from './inteligence/generateSearchResponse';
 
 let messages: Message[] = [];
 const privateMessages = new Map<string, Message[]>();
@@ -27,6 +28,27 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     if (type !== "text") return;
     const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
     const isGroup = sessionId.endsWith('@g.us');
+
+    // --- INÍCIO DO GATILHO DO NOVO AGENTE DE PESQUISA ONLINE ---
+    const searchTrigger = "/pesquisa ";
+    if (content?.toLowerCase().startsWith(searchTrigger)) {
+      const query = content.substring(searchTrigger.length);
+      beautifulLogger.info("ORQUESTRADOR", `Agente de Pesquisa ativado com a query: "${query}"`);
+
+      try {
+        // Avisa ao usuário que está pesquisando (melhora a experiência)
+        await whatsapp.sendText(sessionId, "🔎 Certo, pesquisando na internet sobre isso...");
+
+        const searchResult = await generateSearchResponse(query);
+        await whatsapp.sendText(sessionId, searchResult);
+      } catch (error) {
+        beautifulLogger.error("AGENTE PESQUISADOR", "O agente falhou", error);
+        await whatsapp.sendText(sessionId, "Desculpe, não consegui concluir a pesquisa. Tente novamente mais tarde.");
+      }
+
+      return; // Encerra o fluxo aqui, não precisa da IA conversacional normal.
+    }
+    // --- FIM DO GATILHO DO NOVO AGENTE DE PESQUISA ONLINE ---
 
     if (!isGroup) {
       const now = Date.now();

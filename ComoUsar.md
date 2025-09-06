@@ -15,18 +15,38 @@ NODE_ENV=development # ou production
 ```
 ### 2- Gerenciando o modelo:
 
-No arquivo `src/inteligence/generateResponse.ts` procure pela parte do script abaixo e altere conforme o modelo que você escolher usar:
+No arquivo `model.json` na raiz do projeto é o responsável pelo catálogo de modelos que podemos usar no projeto. Abra-o e altere os modelos conforme a sua necessidade. Exemplo:
 ```
-// --- Constantes Centralizadas ---
-// ATUALIZAÇÃO: Alterado para o modelo gratuito DeepSeek da OpenRouter.
-const MODEL_NAME = "deepseek/deepseek-r1-0528:free";
-const MODEL_PRICING = {
-  // Geralmente informado em USD$ por Milhão de tokens
-  // O modelo é gratuito, então o custo é zero.
-  input: 0,
-  output: 0,
-};
+{
+  "default": {
+    "MODEL_NAME": "deepseek/deepseek-chat-v3-0324",
+    "MODEL_PRICING": {
+      "input": 0.2,
+      "output": 0.8
+    }
+  },
+  "search": {
+    "MODEL_NAME": "perplexity/sonar",
+    "MODEL_PRICING": {
+      "input": 1.0,
+      "output": 1.0
+    }
+  },
+  "free": {
+    "MODEL_NAME": "deepseek/deepseek-chat-v3.1:free",
+    "MODEL_PRICING": {
+      "input": 0,
+      "output": 0
+    }
+  }
+}
 ```
+No Json acima temos:
+
+- __default__: é o modelo padrão de conversa do Paçoca. Seu conhecimento é limitado até junho/2024
+- __search__: é o modelo de pesquisa online, ele sai do personagem Paçoca e faz uma pesquisa ne Internet a respeito de informações da atualidade. Esse modulo é acionado pela palavra-chave `/pesquisa` exemplo: `/pesquisa Qual a cotação do dólar hoje?`
+- __free__: é o modelo grátis utilizado para os arquivos `src/inteligence/generateSummary.ts` e `src/inteligence/isPossibleResponse.ts` responsáveis pelo sumario de interações em grupos e responsável para ver se o Paçoca pode ou não responder uma interação
+
 # Como testar em desenvolvimento?
 
 O arquivo `test-ai.mjs` é o responsável por simular um grupo de Whatsapp para vermos como o Paçoca está se comportanto. 

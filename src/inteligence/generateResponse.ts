@@ -54,12 +54,12 @@ export type GenerateResponseResult = {
 
 // --- Constantes Centralizadas ---
 // ATUALIZAÇÃO: Alterado para o modelo gratuito DeepSeek da OpenRouter.
-const MODEL_NAME = config.MODEL_NAME;
+const MODEL_NAME = config.default.MODEL_NAME;
 const MODEL_PRICING = {
   // Geralmente informado em USD$ por Milhão de tokens
-  // O modelo é gratuito, então o custo é zero.
-  input: config.MODEL_PRICING.input,
-  output: config.MODEL_PRICING.output,
+  // se o modelo é gratuito, então o custo é zero.
+  input: config.default.MODEL_PRICING.input,
+  output: config.default.MODEL_PRICING.output,
 };
 
 /**
@@ -222,10 +222,10 @@ export default async function generateResponse(
 
   const outputTokens = calculateTokens(content);
   const totalTokens = inputTokens + outputTokens;
-  const cost = (inputTokens * config.MODEL_PRICING.input / 100000 / 2) + (outputTokens * config.MODEL_PRICING.output / 100000 / 2);
+  const cost = (inputTokens * MODEL_PRICING.input / 100000 / 2) + (outputTokens * MODEL_PRICING.output / 100000 / 2);
 
   beautifulLogger.aiGeneration("cost", {
-    "modelo utilizado": config.MODEL_NAME,
+    "modelo utilizado": MODEL_NAME,
     "tokens entrada (est.)": inputTokens,
     "tokens saída (est.)": outputTokens,
     "tokens total (est.)": totalTokens,

@@ -1,7 +1,23 @@
 {
-  "MODEL_NAME": "deepseek/deepseek-chat-v3-0324",
-  "MODEL_PRICING": {
-    "input": 0.2,
-    "output": 0.8
+  "default": {
+    "MODEL_NAME": "deepseek/deepseek-chat-v3-0324",
+    "MODEL_PRICING": {
+      "input": 0.2,
+      "output": 0.8
+    }
+  },
+  "search": {
+    "MODEL_NAME": "perplexity/sonar",
+    "MODEL_PRICING": {
+      "input": 1.0,
+      "output": 1.0
+    }
+  },
+  "free": {
+    "MODEL_NAME": "deepseek/deepseek-chat-v3.1:free",
+    "MODEL_PRICING": {
+      "input": 0,
+      "output": 0
+    }
   }
 }
