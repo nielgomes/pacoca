@@ -14,7 +14,7 @@
     }
   },
   "free": {
-    "MODEL_NAME": "openai/gpt-5-nano",
+    "MODEL_NAME": "deepseek/deepseek-chat-v3-0324",
     "MODEL_PRICING": {
       "input": 0,
       "output": 0
