@@ -29,6 +29,51 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
     const isGroup = sessionId.endsWith('@g.us');
 
+    // --- INÍCIO DO NOVO CÓDIGO DO COMANDO VER SUMARIOS ---
+    if (content?.toLowerCase().startsWith("/sumario")) {
+      beautifulLogger.info("COMANDO", "Comando '/sumario' recebido.");
+      const allData = db.getAll();
+      // Filtramos o banco de dados para pegar apenas as chaves que são de grupos
+      const groupSummaries = Object.keys(allData).filter(key => key.endsWith('@g.us'));
+    
+      if (groupSummaries.length === 0) {
+        await whatsapp.sendText(sessionId, "Ainda não tenho nenhum sumário de grupo em memória.");
+        return; // Encerra o processamento
+      }
+    
+      const parts = content.split(" ");
+      // Caso o usuário queira ver um sumário específico (ex: /sumario 1)
+      if (parts.length > 1 && !isNaN(parseInt(parts[1]))) {
+        const index = parseInt(parts[1]) - 1;
+        if (index >= 0 && index < groupSummaries.length) {
+          const targetGroupId = groupSummaries[index];
+          const summaryData = allData[targetGroupId];
+
+          let responseText = `📋 *Sumário do Grupo ${index + 1}*\n\n`;
+          responseText += `*Resumo:* ${summaryData.summary}\n\n`;
+          responseText += "*Opiniões Formadas:*\n";
+          summaryData.opinions.forEach(op => {
+            responseText += `  - *${op.name}:* Nível ${op.opinion}/100 (${op.traits.join(', ')})\n`;
+          });
+          await whatsapp.sendText(sessionId, responseText);
+        
+        } else {
+          await whatsapp.sendText(sessionId, "Número de sumário inválido. Verifique a lista e tente novamente.");
+        }
+      } else {
+        // Caso o usuário só digite /sumario, listamos os disponíveis
+        let responseText = "Encontrei sumários para os seguintes grupos:\n\n";
+        groupSummaries.forEach((groupId, index) => {
+          // Idealmente, teríamos o nome do grupo aqui, mas por enquanto usamos parte do ID
+          responseText += `${index + 1}. Grupo ...${groupId.substring(4, 12)}\n`;
+        });
+        responseText += "\nPara ver um sumário específico, use o comando `/sumario [número]`.";
+        await whatsapp.sendText(sessionId, responseText);
+      }
+      return; // Encerra o processamento para não tratar como uma mensagem normal
+    }
+    // --- FIM DO NOVO CÓDIGO DO COMANDO VER SUMARIOS---
+
     // --- INÍCIO DO GATILHO DO NOVO AGENTE DE PESQUISA ONLINE ---
     const searchTrigger = "/pesquisa ";
     if (content?.toLowerCase().startsWith(searchTrigger)) {
@@ -117,9 +162,14 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
       // A lógica de resumo só faz sentido para grupos com contexto compartilhado
       debounce(
         async () => {
-          const summary = await generateSummary(db.getAll(), messages);
-          db.set("summary", summary.summary);
-          db.set("opinions", summary.opinions);
+          const summaryResult = await generateSummary(db.getAll(), messages);
+          // Agrupamos os dados do resumo em um único objeto
+          const summaryData = {
+            summary: summaryResult.summary,
+            opinions: summaryResult.opinions,
+          };
+          // Salvamos o objeto inteiro usando o ID do grupo como chave
+          db.set(sessionId, summaryData);
           db.save();
           messages = []; // Limpa a memória do grupo após resumir
         },
@@ -200,7 +250,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
         await whatsapp.setTyping(sessionId);
 
         // Passamos a memória correta para a IA.
-        const result = await generateResponse(db.getAll(), currentMessages);
+        const result = await generateResponse(db.getAll(), currentMessages, sessionId);
         // -----------------------------------------
         const response = result.actions;
 

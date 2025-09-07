@@ -176,7 +176,8 @@ const RESPONSE_SCHEMA = {
 
 export default async function generateResponse(
   data: Data,
-  messages: Message
+  messages: Message,
+  sessionId: string
 ): Promise<GenerateResponseResult> {
   beautifulLogger.aiGeneration("start", "Iniciando geração de resposta...");
 
@@ -193,7 +194,10 @@ export default async function generateResponse(
     "mensagem mais recente": uniqueMessages.at(-1)?.content || "nenhuma",
   });
 
-  const contextData = formatDataForPrompt(data);
+  // Selecionamos apenas os dados do grupo atual (sessionId) do nosso banco de dados.
+  // Se não houver dados, passamos um objeto vazio.
+  const groupData = data[sessionId] || {};
+  const contextData = formatDataForPrompt(groupData);
   const inputMessages: ChatCompletionMessageParam[] = [
     { role: "system", content: PERSONALITY_PROMPT },
     { role: "assistant", content: contextData },
