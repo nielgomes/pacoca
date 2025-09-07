@@ -26,7 +26,7 @@ export default async function isPossibleResponse(data: Data, messages: Message) 
         else if (opinion.opinion < 40) opnion = "NÃO GOSTO";
         else if (opinion.opinion < 60) opnion = "NEUTRO/MISTO";
         else if (opinion.opinion < 80) opnion = "GOSTO BASTANTE";
-        else if (opinion.opinion <= 100) opnion = "APAIXONADA";
+        else if (opinion.opinion <= 100) opnion = "APAIXONADO";
         formattedData += `• ${opinion.name} (${opinion.jid}):\n`;
         formattedData += `  - Nível de opinião: ${opinion.opinion}/100 (${opnion})\n`;
         if (opinion.traits && opinion.traits.length > 0) {
