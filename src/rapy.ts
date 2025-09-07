@@ -377,7 +377,10 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
         lastRapyResponseTime = Date.now();
 
       } catch (error) {
-        beautifulLogger.error("GERAÇÃO", "Erro ao gerar resposta", error);
+        // SUBSTITUÍMOS O LOGGER PADRÃO POR UM CONSOLE.ERROR DETALHADO
+        console.error("❌ ERRO DETALHADO CAPTURADO EM 'processResponse':");
+        console.error(error);
+        beautifulLogger.error("GERAÇÃO", "Ocorreu um erro detalhado acima.");
       } finally {
         isGenerating = false;
         await whatsapp.setOnline(sessionId);

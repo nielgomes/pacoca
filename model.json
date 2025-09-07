@@ -14,10 +14,10 @@
     }
   },
   "free": {
-    "MODEL_NAME": "deepseek/deepseek-chat-v3-0324",
+    "MODEL_NAME": "google/gemini-2.5-flash-lite",
     "MODEL_PRICING": {
-      "input": 0,
-      "output": 0
+      "input": 0.10,
+      "output": 0.40
     }
   }
 }

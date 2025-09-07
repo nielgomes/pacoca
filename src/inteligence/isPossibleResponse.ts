@@ -20,7 +20,6 @@ export default async function isPossibleResponse(data: Data, messages: Message) 
     if (data.opinions && data.opinions.length > 0) {
       formattedData += `👥 OPINÕES SOBRE OS USUÁRIOS:\n`;
       data.opinions.forEach((opinion) => {
-        formattedData += `• ${opinion.name} (${opinion.jid}):\n`;
 
         let opnion = "NEUTRO/MISTO";
         if (opinion.opinion < 20) opnion = "ODEIO ELE";
@@ -28,7 +27,7 @@ export default async function isPossibleResponse(data: Data, messages: Message) 
         else if (opinion.opinion < 60) opnion = "NEUTRO/MISTO";
         else if (opinion.opinion < 80) opnion = "GOSTO BASTANTE";
         else if (opinion.opinion <= 100) opnion = "APAIXONADA";
-
+        formattedData += `• ${opinion.name} (${opinion.jid}):\n`;
         formattedData += `  - Nível de opinião: ${opinion.opinion}/100 (${opnion})\n`;
         if (opinion.traits && opinion.traits.length > 0) {
           formattedData += `  - O que acho dele (Características): ${opinion.traits.join(", ")}\n`;
@@ -74,32 +73,28 @@ export default async function isPossibleResponse(data: Data, messages: Message) 
       },
       {
         role: "user",
-        content: `Conversa: \n\n${messagesMaped}`,
+        content: `Conversa: \n\n${messagesMaped}`
       },
     ],
     response_format: responseSchema,
-    max_tokens: 30,
+    max_tokens: 30
   });
 
   const content = response.choices[0]?.message?.content;
 
   if (!content) {
-    throw new Error("Nenhuma resposta foi gerada pela IA");
+    throw new Error("Nenhuma resposta foi gerada pela IA (conteúdo nulo)");
   }
 
   try {
-    console.log("Conteúdo do resumo recebido:", content);
-
     const parsedResponse = JSON.parse(content);
-
     if (!("possible" in parsedResponse)) {
-      throw new Error("Resposta não contém possible");
+      throw new Error("Resposta não contém a propriedade 'possible'.");
     }
-
     return parsedResponse as { possible: boolean; reason: string };
   } catch (error) {
     console.error("Erro ao fazer parse da resposta do resumo:", error);
-    console.error("Conteúdo recebido:", content);
-    throw new Error("Resposta da IA para resumo não está no formato JSON válido");
+    console.error("Conteúdo recebido que falhou o parse:", content);
+    throw new Error("A resposta da IA não é um JSON válido, mesmo com o modo estruturado.");
   }
 }
