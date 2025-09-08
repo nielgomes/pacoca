@@ -19,5 +19,12 @@
       "input": 0.10,
       "output": 0.40
     }
+  },
+  "nemo": {
+    "MODEL_NAME": "mistralai/mistral-nemo",
+    "MODEL_PRICING": {
+      "input": 0.01,
+      "output": 0.04
+    }
   }
 }
