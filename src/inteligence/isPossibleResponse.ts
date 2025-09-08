@@ -64,7 +64,7 @@ export default async function isPossibleResponse(data: Data, messages: Message) 
   };
 
   const response = await openai.chat.completions.create({
-    model: config.nemo.MODEL_NAME,
+    model: config.free.MODEL_NAME,
     messages: [
       { role: "system", content: POSSIBLE_RESPONSE_PROMPT },
       {
