@@ -20,6 +20,13 @@
       "output": 0.40
     }
   },
+  "perplexity": {
+    "MODEL_NAME": "sonar-reasoning",
+    "MODEL_PRICING": {
+      "input": 0,
+      "output": 0
+    }
+  },
   "nemo": {
     "MODEL_NAME": "mistralai/mistral-nemo",
     "MODEL_PRICING": {
