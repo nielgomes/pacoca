@@ -63,10 +63,16 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
       } else {
         // Caso o usuário só digite /sumario, listamos os disponíveis
         let responseText = "Encontrei sumários para os seguintes grupos:\n\n";
-        groupSummaries.forEach((groupId, index) => {
-          // Idealmente, teríamos o nome do grupo aqui, mas por enquanto usamos parte do ID
-          responseText += `${index + 1}. Grupo ...${groupId.substring(4, 12)}\n`;
-        });
+      
+        // Usamos um loop for...of para poder usar 'await' e buscar cada nome
+        let index = 0;
+        for (const groupId of groupSummaries) {
+          // Usamos nossa nova função para buscar o nome do grupo!
+          const groupName = await whatsapp.getGroupName(groupId);
+          responseText += `${index + 1}. ${groupName}\n`;
+          index++;
+        }
+      
         responseText += "\nPara ver um sumário específico, use o comando `/sumario [número]`.";
         await whatsapp.sendText(sessionId, responseText);
       }
@@ -257,25 +263,6 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
         try {
           const l = log();
           const lastMessage = currentMessages.filter(m => !m.ia).at(-1)?.content || "N/A";
-          // O novo log.ts espera um objeto com 'input' e 'output'.
-          // Vamos formatar a saída da IA de forma legível.
-          /*const outputText = response.map(action => {
-            if (action.message) return `[MENSAGEM] ${action.message.text}`;
-            if (action.sticker) return `[STICKER] ${action.sticker}`;
-            if (action.audio) return `[AUDIO] ${action.audio}`;
-            if (action.meme) return `[MEME] ${action.meme}`;
-            return `[AÇÃO] ${action.type}`;
-          }).join('\n');
-        
-          l.add({
-            input: messages[messages.length - 1].content,
-            output: outputText,
-          });
-          l.save();
-          beautifulLogger.success("LOG", "Interação salva no arquivo de log");
-        } catch (error) {
-          beautifulLogger.error("LOG", "Erro ao salvar log", error);
-        } */
           const outputText = response.map(action => action.message?.text || `<${action.type}>`).join('\n');
           l.add({ input: lastMessage, output: outputText });
           l.save();
@@ -315,7 +302,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
             } else {
               const message = action.message.text;
               await whatsapp.sendText(sessionId, message);
-              messages.push({
+              currentMessages.push({
                 content: `(Rapy): ${message}`,
                 name: "Rapy",
                 jid: "",
@@ -330,7 +317,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
           } else if (action.sticker) {
             const stickerPath = path.join(getHomeDir(), "stickers", action.sticker);
             await whatsapp.sendSticker(sessionId, stickerPath);
-            messages.push({
+            currentMessages.push({
               content: `(Rapy): <usou o sticker ${action.sticker}>`,
               name: "Rapy",
               jid: "",
@@ -342,7 +329,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
           } else if (action.audio) {
             const audioPath = path.join(getHomeDir(), "audios", action.audio);
             await whatsapp.sendAudio(sessionId, audioPath);
-            messages.push({
+            currentMessages.push({
               content: `(Rapy): <enviou o áudio ${action.audio}>`,
               name: "Rapy",
               jid: "",
@@ -354,7 +341,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
           } else if (action.meme) {
             const memePath = path.join(getHomeDir(), "memes", action.meme);
             await whatsapp.sendImage(sessionId, memePath);
-            messages.push({
+            currentMessages.push({
               content: `(Rapy): <enviou o meme ${action.meme}>`,
               name: "Rapy",
               jid: "",
@@ -365,7 +352,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
             });
           } else if (action.poll) {
             await whatsapp.createPoll(sessionId, action.poll.question, action.poll.options);
-            messages.push({
+            currentMessages.push({
               content: `(Rapy): <criou uma enquete: ${action.poll.question}>`,
               name: "Rapy",
               jid: "",
@@ -376,7 +363,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
               opções: action.poll.options.join(", "),
             });
           } else if (action.location) {
-            messages.push({
+            currentMessages.push({
               content: `(Rapy): <enviou uma localização (${action.location.latitude}, ${action.location.longitude})>`,
               name: "Rapy",
               jid: "",
@@ -391,7 +378,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
               coordenadas: `${action.location.latitude}, ${action.location.longitude}`,
             });
           } else if (action.contact) {
-            messages.push({
+            currentMessages.push({
               content: `(Rapy): <enviou um contato (${action.contact.name} (${action.contact.cell}))>`,
               name: "Rapy",
               jid: "",

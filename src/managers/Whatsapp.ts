@@ -276,4 +276,22 @@ export default class Whatsapp {
   async pauseTyping(to: string) {
     await this.updatePresence(to, "paused");
   }
+
+  /**
+   * Busca os metadados de um grupo e retorna seu nome (subject).
+   * @param jid O ID do grupo (ex: '12345@g.us')
+   * @returns O nome do grupo ou o próprio JID caso não encontre.
+   */
+  public async getGroupName(jid: string): Promise<string> {
+    if (!this.sock || !jid.endsWith('@g.us')) {
+      return jid; // Retorna o ID se não for um grupo ou se não estiver conectado
+    }
+    try {
+      const metadata = await this.sock.groupMetadata(jid);
+      return metadata.subject; // 'subject' é o campo que contém o nome do grupo
+    } catch (error) {
+      console.error(`Falha ao buscar metadados para o grupo ${jid}:`, error);
+      return jid; // Em caso de erro, retorna o ID como fallback
+    }
+  }
 }
