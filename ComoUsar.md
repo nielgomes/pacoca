@@ -5,6 +5,11 @@
 Criar um arquivo .env contendo:
 ```
 OPENROUTER_API_KEY="sua chave de API"
+#Chave da API do Gemini pro
+GEMINI_API_KEY="sua chave de API do Gemini"
+# Chave da API do Perplexity
+PERPLEXITY_API_KEY="sua chave do Perplexity"
+
 
 # (Opcional, mas recomendado) O nome do seu app para identificação nos headers
 APP_NAME="paçoca"
