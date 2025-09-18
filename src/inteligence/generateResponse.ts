@@ -38,7 +38,7 @@ export type Message = {
   name: string | undefined;
   ia: boolean;
   jid: string;
-}[];
+};
 
 export type BotResponse = Action[];
 

@@ -10,6 +10,7 @@ import isPossibleResponse from "./inteligence/isPossibleResponse";
 import beautifulLogger from "./utils/beautifulLogger";
 import silenceRapy from "./inteligence/silenceRapy";
 import generateSearchResponse from './inteligence/generateSearchResponse';
+import generateConversationStarter from './inteligence/generateConversationStarter';
 
 let messages: Message[] = [];
 const privateMessages = new Map<string, Message[]>();
@@ -19,6 +20,28 @@ let silenced = false;
 const privateChatActivity = new Map<string, number>();
 const CONVERSATION_TIMEOUT = 5 * 60 * 1000; // 5 minutos em milissegundos
 
+/**
+ * Corrige um número de celular brasileiro, removendo o 9º dígito extra após o DDD.
+ * Exemplo: Converte "5561999806243" para "556199806243".
+ * @param number O número de telefone a ser corrigido.
+ * @returns O número corrigido e normalizado.
+ */
+function normalizeBrazilianNumber(number: string): string {
+  const cleanNumber = number.replace(/\D/g, "");
+
+  // A regra se aplica a números brasileiros (começam com 55), que têm 13 dígitos no total
+  // (55 + DDD + 9 + 8 dígitos), e o 5º dígito (índice 4) é um '9'.
+  if (cleanNumber.length === 13 && cleanNumber.startsWith('55') && cleanNumber.charAt(4) === '9') {
+    // Remove o 9º dígito
+    const correctedNumber = cleanNumber.substring(0, 4) + cleanNumber.substring(5);
+    beautifulLogger.info("NORMALIZAÇÃO", `Número ${cleanNumber} corrigido para ${correctedNumber}`);
+    return correctedNumber;
+  }
+  
+  // Se não corresponder à regra, retorna o número apenas limpo.
+  return cleanNumber;
+}
+
 export default async function rapy(whatsapp: Whatsapp) {
   const db = database();
   let isGenerating = false;
@@ -27,6 +50,69 @@ export default async function rapy(whatsapp: Whatsapp) {
 whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     if (type !== "text") return;
     const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+    // --- INÍCIO DO CÓDIGO DO COMANDO /call ---
+    if (content?.toLowerCase().startsWith("/call")) {
+      // Usamos uma expressão regular para extrair o número e o contexto
+      const match = content.match(/^\/call\s+([+0-9]+)\s+(.*)$/);
+    
+      if (!match) {
+        await whatsapp.sendText(sessionId, "Formato inválido. Use: /call [numero] [contexto]");
+        return;
+      }
+    
+      const targetNumber = match[1];
+      const context = match[2];
+      const normalizedNumber = normalizeBrazilianNumber(targetNumber);
+      const targetJid = `${normalizedNumber}@s.whatsapp.net`;
+    
+      beautifulLogger.info("COMANDO /call", `Iniciando conversa com ${targetJid} sobre: "${context}"`);
+    
+      try {
+        // 1. Verificamos se o número existe no WhatsApp.
+        const [exists] = await whatsapp.sock!.onWhatsApp(targetJid);
+        if (!exists || !exists.exists) {
+            await whatsapp.sendText(sessionId, `O número ${targetNumber} não foi encontrado no WhatsApp.`);
+            beautifulLogger.error("COMANDO /call", "Número de destino não existe no WhatsApp.", { targetJid });
+            return;
+        }
+
+        // 2. "Aquecemos" a conversa enviando uma presença e status de "digitando".
+        beautifulLogger.info("COMANDO /call", `Iniciando handshake de presença para ${targetJid}`);
+        await whatsapp.setOnline(targetJid);
+        await whatsapp.setTyping(targetJid);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Pequena pausa para simular digitação
+      
+        // 3. Gera a mensagem de abertura (agora corrigida para ser texto puro)
+        const initialMessage = await generateConversationStarter(context);
+      
+        // 4. Envia a mensagem para o alvo (agora com a sessão estabelecida)
+        await whatsapp.sendText(targetJid, initialMessage);
+      
+        // 5. Salva a mensagem ENVIADA na memória do alvo
+        const privateHistory = privateMessages.get(targetJid) || [];
+        privateHistory.push({
+          content: `(Paçoca): ${initialMessage}`,
+          name: "Paçoca",
+          jid: "",
+          ia: true,
+        });
+        privateMessages.set(targetJid, privateHistory);
+      
+        // 6. Inicia o timer de 5 minutos para a conversa
+        privateChatActivity.set(targetJid, Date.now());
+      
+        // 7. Confirma a operação para você
+        await whatsapp.sendText(sessionId, `Ok, conversa iniciada com ${targetNumber}.`);
+      
+      } catch (error) {
+        beautifulLogger.error("COMANDO /call", "O agente 'Puxa-Assunto' falhou", error);
+        await whatsapp.sendText(sessionId, "Desculpe, não consegui gerar a mensagem de abertura.");
+      }
+    
+      return; // Encerra o fluxo para não processar o comando como uma mensagem normal
+    }
+    // --- FIM DO CÓDIGO DO COMANDO /call ---
+    
     const isGroup = sessionId.endsWith('@g.us');
 
     // --- INÍCIO DO NOVO CÓDIGO DO COMANDO VER SUMARIOS ---
@@ -440,5 +526,4 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     }
   });
 
-  await whatsapp.connect();
 }

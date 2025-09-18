@@ -46,6 +46,8 @@ No Json acima temos:
 - __default__: é o modelo padrão de conversa do Paçoca. Seu conhecimento é limitado até junho/2024
 - __search__: é o modelo de pesquisa online, ele sai do personagem Paçoca e faz uma pesquisa ne Internet a respeito de informações da atualidade. Esse modulo é acionado pela palavra-chave `/pesquisa` exemplo: `/pesquisa Qual a cotação do dólar hoje?`
 - __free__: é o modelo grátis (ou mais baratos) utilizado para os arquivos `src/inteligence/generateSummary.ts` e `src/inteligence/isPossibleResponse.ts` responsáveis pelo sumario de interações em grupos e responsável para ver se o Paçoca pode ou não responder uma interação
+- __perplexity__: é o modelo de pesquisa Sonar utilizando a API do site da Perplexity, gratis por 12 meses. Esse modulo é acionado pela palavra-chave `/pesquisa` exemplo: `/pesquisa Qual a cotação do dólar hoje?`
+- __nemo__: é o modelo mistral-nemo que o 7º mais utilizado no OpenRouter como modelo de RP (Role Play)
 
 # Visualizar sumario de grupos
 
@@ -56,6 +58,18 @@ Obs.:
 - Os sumario são criados quando um grupo possui mais de 10 interações e fica mais de 5 minutos inativo, esse é o gatilho para a criação de um sumario do grupo
 - Cada grupo possui o seu proprio sumario vinculado ao seu número de ID
 - A cada rebuild do container os sumarios são perdidos e inicia-se a criação do zero. 
+
+# Como fazer pesquisas
+
+O modulo de pesquisa é acionado pela palavra-chave `/pesquisa [contexto]` exemplo: `/pesquisa Qual a cotação do dólar hoje?`
+
+# Como usar o módulo Puxar Assunto
+
+Para pedir que o Paçoca 'puxe assunto' com alguem use o comando `/call [nr whatsapp] [contexto]`, onde:
+- `/call` é o comando
+- `[nr whatsapp]` é o número do telefone do alvo para o inicio da interação, no padrão do Whatsapp (com 12 caracteres). Exemplo: 556191234567 sem um 9 a mais que temos no padrão brasileiro.
+- `[contexto]` é o contexto do assunto que você quer que o Paçoca inicie a interação, se possivel informando o nome do alvo. Exemplo: Puxe assunto com a Gi referente ao desenho Cavaleiros do Zodiaco.
+- Com base nas informações acima o exemplo na integra ficaria assim: `/call 556191234567 Puxe assunto com a Gi referente ao desenho Cavaleiros do Zodiaco.`
 
 # Como testar em desenvolvimento?
 
