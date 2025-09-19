@@ -19,6 +19,9 @@ const messagesIds = new Map<string, string>();
 let silenced = false;
 const privateChatActivity = new Map<string, number>();
 const CONVERSATION_TIMEOUT = 5 * 60 * 1000; // 5 minutos em milissegundos
+const PENDING_REPLY_TIMEOUT = 24 * 60 * 60 * 1000; // 24 horas
+const pendingFirstReply = new Set<string>(); // "Memória" para quem estamos esperando a primeira resposta
+
 
 /**
  * Corrige um número de celular brasileiro, removendo o 9º dígito extra após o DDD.
@@ -98,6 +101,10 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
         });
         privateMessages.set(targetJid, privateHistory);
       
+        // Marcamos este usuário como "aguardando a primeira resposta"
+        pendingFirstReply.add(targetJid);
+        beautifulLogger.info("TIMER", `Conversa com ${targetJid} marcada como pendente de primeira resposta.`);
+        
         // 6. Inicia o timer de 5 minutos para a conversa
         privateChatActivity.set(targetJid, Date.now());
       
@@ -113,8 +120,6 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     }
     // --- FIM DO CÓDIGO DO COMANDO /call ---
     
-    const isGroup = sessionId.endsWith('@g.us');
-
     // --- INÍCIO DO NOVO CÓDIGO DO COMANDO VER SUMARIOS ---
     if (content?.toLowerCase().startsWith("/sumario")) {
       beautifulLogger.info("COMANDO", "Comando '/sumario' recebido.");
@@ -187,16 +192,35 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     }
     // --- FIM DO GATILHO DO NOVO AGENTE DE PESQUISA ONLINE ---
 
+    const isGroup = sessionId.endsWith('@g.us');
+    
     if (!isGroup) {
       const now = Date.now();
       const lastActivity = privateChatActivity.get(sessionId) || 0;
-      if (now - lastActivity > CONVERSATION_TIMEOUT) {
-        beautifulLogger.info("CONTEXTO", `Conversa privada com ${sessionId} reiniciada por inatividade.`);
-        privateMessages.set(sessionId, []); // Limpa a memória daquela conversa específica
+    
+      // Verifica se esta conversa estava aguardando a primeira resposta
+      if (pendingFirstReply.has(sessionId)) {
+        // Se a primeira resposta chegou, a conversa se torna 'ativa'
+        beautifulLogger.info("CONTEXTO", `Primeira resposta recebida de ${sessionId}. A conversa agora está ativa.`);
+        pendingFirstReply.delete(sessionId); // Remove da lista de espera
+      
+        // Usamos o timeout longo (24h) para esta primeira verificação
+        if (now - lastActivity > PENDING_REPLY_TIMEOUT) {
+          beautifulLogger.info("CONTEXTO", `Conversa com ${sessionId} reiniciada por inatividade (24h).`);
+          privateMessages.set(sessionId, []);
+        }
+      } else {
+        // Se é uma conversa normal, usa o timeout padrão de 5 minutos
+        if (now - lastActivity > CONVERSATION_TIMEOUT) {
+          beautifulLogger.info("CONTEXTO", `Conversa com ${sessionId} reiniciada por inatividade (5min).`);
+          privateMessages.set(sessionId, []);
+        }
       }
+    
+      // Atualiza o timer da conversa para o momento da mensagem atual
       privateChatActivity.set(sessionId, now);
     }
-
+    
     if (!content || (isGroup && !senderInfo)) {
       return;
     }
@@ -373,7 +397,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
             if (action.message.reply && realMessageId) {
               const message = action.message.text;
               await whatsapp.sendTextReply(sessionId, realMessageId, message);
-              messages.push({
+              currentMessages.push({
                 content: `(Rapy): ${message}`,
                 name: "Rapy",
                 jid: "",
