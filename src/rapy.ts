@@ -24,25 +24,46 @@ const pendingFirstReply = new Set<string>(); // "Memória" para quem estamos esp
 
 
 /**
- * Corrige um número de celular brasileiro, removendo o 9º dígito extra após o DDD.
- * Exemplo: Converte "5561999806243" para "556199806243".
- * @param number O número de telefone a ser corrigido.
- * @returns O número corrigido e normalizado.
+ * Valida e formata um número de telefone brasileiro para o formato JID do WhatsApp.
+ * Trata o 9º dígito, código de país, espaços e caracteres especiais.
+ * @param number O número de telefone informado pelo usuário.
+ * @returns Um objeto indicando sucesso com o JID, ou falha com uma mensagem de erro.
  */
-function normalizeBrazilianNumber(number: string): string {
+function normalizeAndValidateJid(number: string): { success: true; jid: string } | { success: false; error: string } {
+  // Caso 3 e 4: Remove todos os caracteres não numéricos (+, -, espaços, etc.)
   const cleanNumber = number.replace(/\D/g, "");
 
-  // A regra se aplica a números brasileiros (começam com 55), que têm 13 dígitos no total
-  // (55 + DDD + 9 + 8 dígitos), e o 5º dígito (índice 4) é um '9'.
-  if (cleanNumber.length === 13 && cleanNumber.startsWith('55') && cleanNumber.charAt(4) === '9') {
-    // Remove o 9º dígito
-    const correctedNumber = cleanNumber.substring(0, 4) + cleanNumber.substring(5);
-    beautifulLogger.info("NORMALIZAÇÃO", `Número ${cleanNumber} corrigido para ${correctedNumber}`);
-    return correctedNumber;
+  // Caso 1: Validação de tamanho mínimo (DDD de 2 dígitos + número de 8 dígitos = 10)
+  if (cleanNumber.length < 10) {
+    return { 
+      success: false, 
+      error: `O número "${number}" parece curto demais. Ele deve ter pelo menos 10 dígitos (DDD + número).` 
+    };
+  }
+
+  // Adiciona o código do Brasil (55) se ele estiver faltando
+  let fullNumber = cleanNumber;
+  if (!cleanNumber.startsWith('55')) {
+    fullNumber = '55' + cleanNumber;
   }
   
-  // Se não corresponder à regra, retorna o número apenas limpo.
-  return cleanNumber;
+  // Caso 2: Remove o '9' extra se for um celular de 13 dígitos (55 + DDD + 9 + 8 dígitos)
+  if (fullNumber.length === 13 && fullNumber.charAt(4) === '9') {
+    const finalNumber = fullNumber.substring(0, 4) + fullNumber.substring(5);
+    beautifulLogger.info("NORMALIZAÇÃO", `Número ${fullNumber} corrigido para ${finalNumber}`);
+    return { success: true, jid: `${finalNumber}@s.whatsapp.net` };
+  }
+
+  // Se o número tiver 12 dígitos (55 + DDD + 8 dígitos), ele já está no formato correto
+  if (fullNumber.length === 12) {
+    return { success: true, jid: `${fullNumber}@s.whatsapp.net` };
+  }
+
+  // Se, após todas as tentativas, o formato ainda for inválido
+  return { 
+    success: false, 
+    error: `O número "${number}" não parece ser um celular ou fixo brasileiro válido. Verifique o DDD e o número.` 
+  };
 }
 
 export default async function rapy(whatsapp: Whatsapp) {
@@ -56,7 +77,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     // --- INÍCIO DO CÓDIGO DO COMANDO /call ---
     if (content?.toLowerCase().startsWith("/call")) {
       // Usamos uma expressão regular para extrair o número e o contexto
-      const match = content.match(/^\/call\s+([+0-9]+)\s+(.*)$/);
+      const match = content.match(/^\/call\s+((?:[+()0-9-\s])+)\s+(.*)$/);
     
       if (!match) {
         await whatsapp.sendText(sessionId, "Formato inválido. Use: /call [numero] [contexto]");
@@ -65,8 +86,17 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
     
       const targetNumber = match[1];
       const context = match[2];
-      const normalizedNumber = normalizeBrazilianNumber(targetNumber);
-      const targetJid = `${normalizedNumber}@s.whatsapp.net`;
+      // Chamamos nossa nova função validadora
+      const validationResult = normalizeAndValidateJid(targetNumber);
+      // Se a validação falhar, enviamos o erro para o usuário e paramos
+      if (!validationResult.success) {
+        await whatsapp.sendText(sessionId, validationResult.error);
+        beautifulLogger.warn("COMANDO /call", "Validação do número falhou.", { erro: validationResult.error });
+        return;
+      }
+
+      // Se a validação for bem-sucedida, usamos o JID retornado
+      const targetJid = validationResult.jid;
     
       beautifulLogger.info("COMANDO /call", `Iniciando conversa com ${targetJid} sobre: "${context}"`);
     
