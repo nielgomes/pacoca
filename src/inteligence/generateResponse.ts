@@ -1,83 +1,29 @@
 //src/inteligence/generateResponse.ts
 import { ChatCompletionMessageParam } from "openai/resources";
 import * as fs from "fs";
-import path from "path";
 import { openai } from "../services/openai";
 import { Data } from "../utils/database";
 import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
-import getHomeDir from "../utils/getHomeDir";
 import beautifulLogger from "../utils/beautifulLogger";
 import config from '../../model.json';
+import mediaCatalog from '../../media_catalog.json';
+import { Message, Action, BotResponse, GenerateResponseResult } from "./types";
 
-// --- Tipos Unificados ---
-export type Action = {
-  type: "message" | "sticker" | "audio" | "poll" | "location" | "meme" | "contact";
-  message?: {
-    reply?: string;
-    text: string;
-  };
-  sticker?: string;
-  audio?: string;
-  meme?: string;
-  poll?: {
-    question: string;
-    options: [string, string, string];
-  };
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
-  contact?: {
-    name?: string;
-    cell: string;
-  };
-};
-
-export type Message = {
-  content: string;
-  name: string | undefined;
-  ia: boolean;
-  jid: string;
-};
-
-export type BotResponse = Action[];
-
-export type GenerateResponseResult = {
-  actions: BotResponse;
-  cost: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    cost: number;
-  };
-};
 
 // --- Constantes Centralizadas ---
 // ATUALIZAÇÃO: Alterado para o modelo gratuito DeepSeek da OpenRouter.
-const MODEL_NAME = config.default.MODEL_NAME;
+const MODEL_NAME = config.xai.MODEL_NAME;
 const MODEL_PRICING = {
   // Geralmente informado em USD$ por Milhão de tokens
   // se o modelo é gratuito, então o custo é zero.
-  input: config.default.MODEL_PRICING.input,
-  output: config.default.MODEL_PRICING.output,
+  input: config.xai.MODEL_PRICING.input,
+  output: config.xai.MODEL_PRICING.output,
 };
 
-/**
- * Lê um diretório e retorna uma lista de arquivos com uma determinada extensão.
- */
-function readMediaFiles(dirPath: string, extension: string): string[] {
-  if (!fs.existsSync(dirPath)) {
-    beautifulLogger.error(`Diretório não encontrado: ${dirPath}`);
-    return [];
-  }
-  return fs.readdirSync(dirPath).filter((file) => file.endsWith(extension));
-}
-
 // --- Carregamento Único de Mídia ---
-const homeDir = getHomeDir();
-const stickerOptions = readMediaFiles(path.join(homeDir, "stickers"), ".webp");
-const audioOptions = readMediaFiles(path.join(homeDir, "audios"), ".mp3");
-const memeOptions = readMediaFiles(path.join(homeDir, "memes"), ".jpg");
+const stickerOptions = mediaCatalog.stickers.map(sticker => sticker.file);
+const audioOptions = mediaCatalog.audios.map(audio => audio.file);
+const memeOptions = mediaCatalog.memes.map(meme => meme.file);
 
 /**
  * Estima o número de tokens para um determinado texto.
@@ -180,31 +126,41 @@ export default async function generateResponse(
   sessionId: string
 ): Promise<GenerateResponseResult> {
   beautifulLogger.aiGeneration("start", "Iniciando geração de resposta...");
-
-  const uniqueMessages = messages.filter(
-    (message, index, array) =>
-      index === 0 || message.content !== array[index - 1].content
-  );
-  const messagesMaped = uniqueMessages
+  const messagesMaped = messages
     .map((message) => `${message.name}: ${message.content}`)
     .join("\n");
 
   beautifulLogger.aiGeneration("processing", {
-    "mensagens processadas": uniqueMessages.length,
-    "mensagem mais recente": uniqueMessages.at(-1)?.content || "nenhuma",
+    "mensagens processadas": messages.length,
+    "mensagem mais recente": messages.at(-1)?.content || "nenhuma",
+  });
+
+  let mediaContext = "INFORMAÇÕES SOBRE MÍDIAS DISPONÍVEIS PARA USO:\n\n";
+  mediaContext += "STICKERS DISPONÍVEIS:\n";
+  mediaCatalog.stickers.forEach(s => {
+    mediaContext += `- arquivo: "${s.file}", descrição: "${s.description}"\n`;
+  });
+  mediaContext += "\nÁUDIOS DISPONÍVEIS:\n";
+  mediaCatalog.audios.forEach(a => {
+    mediaContext += `- arquivo: "${a.file}", descrição: "${a.description}"\n`;
+  });
+  mediaContext += "\nMEMES DISPONÍVEIS:\n";
+  mediaCatalog.memes.forEach(m => {
+    mediaContext += `- arquivo: "${m.file}", descrição: "${m.description}"\n`;
   });
 
   // Selecionamos apenas os dados do grupo atual (sessionId) do nosso banco de dados.
   // Se não houver dados, passamos um objeto vazio.
   const groupData = data[sessionId] || {};
   const contextData = formatDataForPrompt(groupData);
+
   const inputMessages: ChatCompletionMessageParam[] = [
     { role: "system", content: PERSONALITY_PROMPT },
-    { role: "assistant", content: contextData },
+    { role: "assistant", content: `${contextData}\n\n${mediaContext}` },
     { role: "user", content: `Conversa: \n\n${messagesMaped}` },
   ];
 
-  const inputText = inputMessages.map((msg) => msg.content).join("\n");
+  const inputText = inputMessages.map((msg) => msg.content || '').join("\n");
   const inputTokens = calculateTokens(inputText);
 
   beautifulLogger.aiGeneration("tokens", { "tokens de entrada (estimado)": inputTokens });
@@ -228,12 +184,14 @@ export default async function generateResponse(
   const totalTokens = inputTokens + outputTokens;
   const cost = (inputTokens * MODEL_PRICING.input / 100000 / 2) + (outputTokens * MODEL_PRICING.output / 100000 / 2);
 
+  const costMessage = cost === 0 ? `$${cost.toFixed(8)} (modelo gratuito)` : `$${cost.toFixed(8)}`;
+
   beautifulLogger.aiGeneration("cost", {
     "modelo utilizado": MODEL_NAME,
     "tokens entrada (est.)": inputTokens,
     "tokens saída (est.)": outputTokens,
     "tokens total (est.)": totalTokens,
-    "custo (USD)": `$${cost.toFixed(6)} (modelo gratuito)`,
+    "custo (USD)": costMessage,
   });
 
   try {
