@@ -20,7 +20,7 @@ export default async function generateConversationStarter(context: string): Prom
   `;
   
   const response = await openai.chat.completions.create({
-    model: config.xai.MODEL_NAME, // Usamos o modelo padrão para criatividade
+    model: config.default.MODEL_NAME, // Usamos o modelo padrão para criatividade
     messages: [
       { 
         role: "system", 
