@@ -53,6 +53,7 @@ No Json acima temos:
 - __free__: é o modelo grátis (ou mais baratos) utilizado para os arquivos `src/inteligence/generateSummary.ts` e `src/inteligence/isPossibleResponse.ts` responsáveis pelo sumario de interações em grupos e responsável para ver se o Paçoca pode ou não responder uma interação
 - __perplexity__: é o modelo de pesquisa Sonar utilizando a API do site da Perplexity, gratis por 12 meses. Esse modulo é acionado pela palavra-chave `/pesquisa` exemplo: `/pesquisa Qual a cotação do dólar hoje?`
 - __nemo__: é o modelo mistral-nemo que o 7º mais utilizado no OpenRouter como modelo de RP (Role Play)
+- __xai__: é o modelo da Grok terceiro colocado no ranking de RP (Role Play) e mais barato que o modelo __default__. Tem um ótimo desempenho, considerando que ele é 5 vezes mais barato que o deepseek/deepseek-chat-v3-0324.
 
 # Visualizar sumario de grupos
 
@@ -180,3 +181,30 @@ Dicas Avançadas e Boas Práticas
     Use os Logs a seu Favor: Se você estiver perto do computador, use o comando docker logs -f pacoca-container. É como ter uma visão "dos bastidores". Você verá exatamente qual prompt foi montado, qual ação a IA decidiu tomar e o custo (zero, no nosso caso) da operação. Isso é ótimo para entender por que ele respondeu de uma certa maneira.
 
     Limpeza de Contexto: Se o bot ficar "preso" em um tópico ou começar a dar respostas estranhas, o contexto pode ter ficado confuso. A maneira mais fácil de "resetar" é removê-lo do grupo e adicioná-lo novamente.
+
+# Catálogo de mídias
+
+## Pastas de mídias:
+- audios: para salvar audio mp3 curtos para uso durante as interações. Manter os nomes dos arquivos o mais detalhado possivel, exemplo: `zoando_os_palmerenses.mp3`
+- memes: para salvar imagens de memes do tipo jpg. Manter os nomes dos arquivos o mais detalhado possivel, exemplo: `ai_que_burro_da_zero_pra_ele.jpg`
+- stickers: pasta com os stickers webp para uso nos chats. Manter os nomes dos arquivos o mais detalhado possivel, exemplo: `bravo.webp`
+
+## Incluindo arquivos novos ou excluindo arquivos antigos:
+
+### Inclusão de arquivo:
+
+Toda vez que incluirmos um arquivo novo devemos adicionar a sua informação de _file_ e _description_ no arquivo `model.json`, nas respectivas chaves `audios`, `memes` e `stickers` exemplo:
+```
+{
+  "audios": [
+    {
+      "file": "boa-noite.mp3",
+      "description": "Para desejar boa noite de forma amigável e engraçada."
+    }, ...
+   ], ...
+}
+```
+
+### Exclusão de arquivo:
+
+Toda vez que excluirmos um aquivo de mídia de sua respectiva pasta, tambem temos que escluir a sua informação de _file_ e _description_ no arquivo `model.json`, nas respectivas chaves `audios`, `memes` e `stickers`.
