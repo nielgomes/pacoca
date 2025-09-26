@@ -251,7 +251,7 @@ export default class Whatsapp {
     if (!this.sock) throw new Error("Não conectado");
     await this.sock.sendMessage(jid, {
       audio: { url: filePath },
-      ptt: true,
+      ptt: false,
       mimetype: "audio/mpeg",
     });
   }
