@@ -205,10 +205,10 @@ Toda vez que incluirmos um arquivo novo devemos adicionar a sua informação de 
 }
 ```
 
-### Exclusão de arquivo:
+ ### Exclusão de arquivo:
 
 Toda vez que excluirmos um aquivo de mídia de sua respectiva pasta, tambem temos que escluir a sua informação de _file_ e _description_ no arquivo `model.json`, nas respectivas chaves `audios`, `memes` e `stickers`.
 
 # Persistencia de sessão
 
-A pasta `whatsapp_session` é responsável pela permanencia da sessão do whatsapp, o baileys verifica se a sessão ainda é válida, se sim ela à reaproveita, se não é válida, solicita a leitura de novo QR code.
+A pasta `whatsapp_session` é responsável pela permanencia da sessão do whatsapp, o baileys verifica se a sessão ainda é válida, se sim ela à reaproveita a sessão existente, se não é válida, ele solicita a leitura de novo QR code para gerar nova sessão.
