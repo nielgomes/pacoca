@@ -4,3 +4,8 @@ database
 auth
 dist
 logs
+# Ignora todo o conteúdo dentro da pasta whatsapp_session
+whatsapp_session/*
+
+# Mas NÃO ignora o arquivo .gitkeep (a nossa exceção para manter a pasta)
+!whatsapp_session/.gitkeep

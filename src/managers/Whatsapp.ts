@@ -39,7 +39,7 @@ export default class Whatsapp {
   // O método 'init' agora é chamado de 'connect' para maior clareza.
   // Ele será o responsável por iniciar e reiniciar a conexão.
   async connect() {
-    const { state, saveCreds } = await useMultiFileAuthState("auth");
+    const { state, saveCreds } = await useMultiFileAuthState("whatsapp_session");
 
     this.sock = makeWASocket({
       browser: ["Paçoca", "Chrome", "123.0.0.0"],
@@ -93,15 +93,22 @@ export default class Whatsapp {
         setTimeout(() => this.connect(), RECONNECT_DELAY_S * 1000);
       } else {
         console.log("Desconectado permanentemente. Limpando credenciais...");
-        try {
-          fs.rmSync(path.join(getHomeDir(), "auth"), {
-            recursive: true,
-            force: true,
-          });
-        } catch (err) {
-          console.error("Falha ao limpar a pasta de autenticação:", err);
+        const sessionDir = path.join(getHomeDir(), "whatsapp_session");
+      try {
+        if (fs.existsSync(sessionDir)) {
+          const files = fs.readdirSync(sessionDir);
+          for (const file of files) {
+            // condição para pular o arquivo .gitkeep
+            if (file !== '.gitkeep') {
+              fs.rmSync(path.join(sessionDir, file), { recursive: true, force: true });
+            }
+          }
+          console.log("Credenciais da sessão anterior limpas com sucesso, .gitkeep preservado.");
         }
-        // Em um ambiente real, o ideal seria encerrar o processo para o Docker/Render reiniciar.
+      } catch (err) {
+        console.error("Falha ao limpar os arquivos da pasta de autenticação:", err);
+      }
+        // Encerra o processo para que o Docker/Railway reinicie o contêiner e gere um novo QR code
         process.exit(1);
       }
     } else if (connection === "open") {
