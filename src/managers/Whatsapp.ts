@@ -137,6 +137,13 @@ export default class Whatsapp {
 
       const sessionId = msg.key.remoteJid;
       if (!sessionId) continue;
+
+      // Força o envio da confirmação de "entregue" (segundo tique) e "lido" (tique azul).
+      // Verificamos se a chave da mensagem existe para evitar erros.
+      if (msg.key) {
+        await this.sock!.readMessages([msg.key]);
+      }
+
       await this.sock!.sendPresenceUpdate('available', sessionId);
 
       if (this.presence === "unavailable") {
