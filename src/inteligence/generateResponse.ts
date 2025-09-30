@@ -12,12 +12,12 @@ import { Message, Action, BotResponse, GenerateResponseResult } from "./types";
 
 // --- Constantes Centralizadas ---
 // ATUALIZAÇÃO: Alterado para o modelo gratuito DeepSeek da OpenRouter.
-const MODEL_NAME = config.xai.MODEL_NAME;
+const MODEL_NAME = config.exp.MODEL_NAME;
 const MODEL_PRICING = {
   // Geralmente informado em USD$ por Milhão de tokens
   // se o modelo é gratuito, então o custo é zero.
-  input: config.xai.MODEL_PRICING.input,
-  output: config.xai.MODEL_PRICING.output,
+  input: config.exp.MODEL_PRICING.input,
+  output: config.exp.MODEL_PRICING.output,
 };
 
 // --- Carregamento Único de Mídia ---

@@ -54,6 +54,7 @@ No Json acima temos:
 - __perplexity__: é o modelo de pesquisa Sonar utilizando a API do site da Perplexity, gratis por 12 meses. Esse modulo é acionado pela palavra-chave `/pesquisa` exemplo: `/pesquisa Qual a cotação do dólar hoje?`
 - __nemo__: é o modelo mistral-nemo que o 7º mais utilizado no OpenRouter como modelo de RP (Role Play)
 - __xai__: é o modelo da Grok terceiro colocado no ranking de RP (Role Play) e mais barato que o modelo __default__. Tem um ótimo desempenho, considerando que ele é 5 vezes mais barato que o deepseek/deepseek-chat-v3-0324.
+- __exp__: é o modelo experimental deepseek/deepseek-v3.2-exp ele é mais barato que o modelo __default__, vou fazer alguns testes com ele para ver como o Paçoca se comportará.
 
 # Visualizar sumario de grupos
 
@@ -181,6 +182,13 @@ Dicas Avançadas e Boas Práticas
     Use os Logs a seu Favor: Se você estiver perto do computador, use o comando docker logs -f pacoca-container. É como ter uma visão "dos bastidores". Você verá exatamente qual prompt foi montado, qual ação a IA decidiu tomar e o custo (zero, no nosso caso) da operação. Isso é ótimo para entender por que ele respondeu de uma certa maneira.
 
     Limpeza de Contexto: Se o bot ficar "preso" em um tópico ou começar a dar respostas estranhas, o contexto pode ter ficado confuso. A maneira mais fácil de "resetar" é removê-lo do grupo e adicioná-lo novamente.
+
+# Silenciando o Paçoca
+
+## Silenciar
+Para silenciar o Paçoca, utilize o comando `/silencio`, o Paçoca entrará em modulo quieto e não responderá mais.
+## Falar
+Para tirá-lo do silêncio (módulo quieto), utilize o comando `/liberado`, o Paçoca sairá do módulo quieto e voltará a interagir.
 
 # Catálogo de mídias
 

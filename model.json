@@ -40,5 +40,12 @@
       "input": 0.20,
       "output": 0.50
     }
+  },
+  "exp": {
+    "MODEL_NAME": "deepseek/deepseek-v3.2-exp",
+    "MODEL_PRICING": {
+      "input": 0.27,
+      "output": 0.41
+    }
   }
 }
