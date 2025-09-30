@@ -17,7 +17,7 @@ export default async function silenceRapy(
   if (!content) return { silenced, messages };
   const messageId = msg.key.id;
 
-  if (content === "/rapy-cala-boca") {
+  if (content === "/silencio") {
     const stickerPath = path.join(getHomeDir(), "stickers", "silenciado.webp");
     await whatsapp.sendSticker(sessionId, stickerPath);
     messages.push({
@@ -50,7 +50,7 @@ export default async function silenceRapy(
     };
   }
 
-  if (content === "/rapy-liberado") {
+  if (content === "/liberado") {
     const stickerPath = path.join(getHomeDir(), "stickers", "livre-para-falar.webp");
     await whatsapp.sendSticker(sessionId, stickerPath);
     messages.push({
