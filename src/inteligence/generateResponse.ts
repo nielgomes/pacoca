@@ -195,25 +195,34 @@ export default async function generateResponse(
   });
 
   try {
-    const parsedResponse = JSON.parse(content) as { actions: BotResponse };
-    const actions = parsedResponse.actions;
+    // Usamos a expressão regular para encontrar o trecho de JSON, possiveis formatações de markdown.
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
 
-    if (!Array.isArray(actions) || actions.length === 0) {
-      beautifulLogger.aiGeneration("error", "Resposta não contém um array de ações válido.");
-      throw new Error("Resposta da IA não contém ações válidas.");
+    if (jsonMatch && jsonMatch[0]) {
+      const jsonString = jsonMatch[0];
+      const parsedResponse = JSON.parse(jsonString) as { actions: BotResponse };
+
+      if (!Array.isArray(parsedResponse.actions)) {
+        throw new Error("O JSON extraído não contém um array de 'actions' válido.");
+      }
+
+      beautifulLogger.aiGeneration("complete", {
+        "ações processadas": parsedResponse.actions.length,
+        "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
+      });
+      
+      return { actions: parsedResponse.actions, cost: { inputTokens, outputTokens, totalTokens, cost } };
+
+    } else {
+      // Se não encontrarmos nenhum trecho de JSON, lançamos um erro claro.
+      throw new Error("Nenhum bloco JSON válido foi encontrado na resposta da IA.");
     }
-
-    beautifulLogger.aiGeneration("complete", {
-      "ações processadas": actions.length,
-      "tipos de ação": actions.map((a) => a.type).join(", "),
-    });
-
-    return { actions, cost: { inputTokens, outputTokens, totalTokens, cost } };
   } catch (error) {
     beautifulLogger.aiGeneration("error", {
-      erro: "Falha ao analisar a resposta JSON da IA.",
+      erro: "Falha ao analisar o JSON extraído da resposta da IA.",
       "conteúdo recebido": content,
     });
-    throw new Error("Resposta da IA não está no formato JSON válido.");
+    // Lançamos o erro para que o 'catch' principal em rapy.ts possa lidar com ele.
+    throw error;
   }
 }
