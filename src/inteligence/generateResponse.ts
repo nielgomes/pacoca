@@ -174,6 +174,13 @@ export default async function generateResponse(
     max_tokens: 200, // Aumentei um pouco para dar mais liberdade à IA
   });
 
+  // Adicionamos uma verificação de segurança explícita para o array 'choices'.
+  if (!response.choices || response.choices.length === 0 || !response.choices[0].message) {
+    beautifulLogger.aiGeneration("error", "A IA não retornou nenhuma opção de resposta (array 'choices' vazio).");
+    // Lançamos um erro claro para ser capturado pelo rapy.ts
+    throw new Error("A IA não retornou nenhuma opção de resposta válida.");
+  }
+
   const content = response.choices[0]?.message?.content;
   if (!content) {
     beautifulLogger.aiGeneration("error", "Nenhuma resposta foi gerada pela IA.");
