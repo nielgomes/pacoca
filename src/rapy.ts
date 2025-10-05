@@ -115,16 +115,34 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
         await whatsapp.setTyping(targetJid);
         await new Promise(resolve => setTimeout(resolve, 2000)); // Pequena pausa para simular digitação
       
-        // 3. Gera a mensagem de abertura (agora corrigida para ser texto puro)
-        const initialMessage = await generateConversationStarter(context);
+        // 3. Gera a mensagem de abertura (agora corrigida para ser texto puro ou json)
+        const rawMessage = await generateConversationStarter(context);
+        let finalMessage = rawMessage; // Por padrão, usamos a resposta bruta
+
+        // 4. Verificamos se a IA "desobedeceu" e mandou um JSON
+        if (rawMessage.trim().startsWith('{"actions":')) {
+          beautifulLogger.warn("PARSER", "IA do 'Puxa-Assunto' retornou JSON. Extraindo texto...");
+          try {
+            const parsed = JSON.parse(rawMessage);
+            // Encontra a primeira ação de mensagem e pega o texto dela
+            const messageAction = parsed.actions.find(a => a.type === 'message' && a.message?.text);
+            if (messageAction) {
+              finalMessage = messageAction.message.text;
+            }
+          } catch (e) {
+            beautifulLogger.error("PARSER", "Falha ao extrair JSON da resposta do 'Puxa-Assunto', usando texto bruto como fallback.", e);
+            // Se o parse falhar, por segurança, usamos a resposta bruta mesmo.
+            finalMessage = rawMessage;
+          }
+        }        
+
+        // 5. Envia a mensagem final (limpa) para o alvo
+        await whatsapp.sendText(targetJid, finalMessage);
       
-        // 4. Envia a mensagem para o alvo (agora com a sessão estabelecida)
-        await whatsapp.sendText(targetJid, initialMessage);
-      
-        // 5. Salva a mensagem ENVIADA na memória do alvo
+        // 6. Salva a mensagem final (limpa) na memória do alvo
         const privateHistory = privateMessages.get(targetJid) || [];
         privateHistory.push({
-          content: `(Paçoca): ${initialMessage}`,
+          content: `(Paçoca): ${finalMessage}`,
           name: "Paçoca",
           jid: "",
           ia: true,
@@ -135,10 +153,10 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
         pendingFirstReply.add(targetJid);
         beautifulLogger.info("TIMER", `Conversa com ${targetJid} marcada como pendente de primeira resposta.`);
         
-        // 6. Inicia o timer de 5 minutos para a conversa
+        // 7. Inicia o timer de 5 minutos para a conversa
         privateChatActivity.set(targetJid, Date.now());
       
-        // 7. Confirma a operação para você
+        // 8. Confirma a operação para você
         await whatsapp.sendText(sessionId, `Ok, conversa iniciada com ${targetNumber}.`);
       
       } catch (error) {
