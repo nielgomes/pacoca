@@ -489,7 +489,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
               await whatsapp.sendTextReply(sessionId, realMessageId, message);
               currentMessages.push({
                 content: `(Rapy): ${message}`,
-                name: "Rapy",
+                name: "Paçoca",
                 jid: "",
                 ia: true,
               });
@@ -504,7 +504,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
               await whatsapp.sendText(sessionId, message);
               currentMessages.push({
                 content: `(Rapy): ${message}`,
-                name: "Rapy",
+                name: "Paçoca",
                 jid: "",
                 ia: true,
               });
@@ -519,7 +519,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
             await whatsapp.sendSticker(sessionId, stickerPath);
             currentMessages.push({
               content: `(Rapy): <usou o sticker ${action.sticker}>`,
-              name: "Rapy",
+              name: "Paçoca",
               jid: "",
               ia: true,
             });
@@ -531,7 +531,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
             await whatsapp.sendAudio(sessionId, audioPath);
             currentMessages.push({
               content: `(Rapy): <enviou o áudio ${action.audio}>`,
-              name: "Rapy",
+              name: "Paçoca",
               jid: "",
               ia: true,
             });
@@ -543,7 +543,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
             await whatsapp.sendImage(sessionId, memePath);
             currentMessages.push({
               content: `(Rapy): <enviou o meme ${action.meme}>`,
-              name: "Rapy",
+              name: "Paçoca",
               jid: "",
               ia: true,
             });
@@ -554,7 +554,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
             await whatsapp.createPoll(sessionId, action.poll.question, action.poll.options);
             currentMessages.push({
               content: `(Rapy): <criou uma enquete: ${action.poll.question}>`,
-              name: "Rapy",
+              name: "Paçoca",
               jid: "",
               ia: true,
             });
@@ -565,7 +565,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
           } else if (action.location) {
             currentMessages.push({
               content: `(Rapy): <enviou uma localização (${action.location.latitude}, ${action.location.longitude})>`,
-              name: "Rapy",
+              name: "Paçoca",
               jid: "",
               ia: true,
             });
@@ -580,7 +580,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
           } else if (action.contact) {
             currentMessages.push({
               content: `(Rapy): <enviou um contato (${action.contact.name} (${action.contact.cell}))>`,
-              name: "Rapy",
+              name: "Paçoca",
               jid: "",
               ia: true,
             });
@@ -590,21 +590,7 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
               telefone: action.contact.cell,
             });
           }
-            const botMessageContent = action.message ? `(Paçoca): ${action.message.text}` : `(Paçoca): <enviou uma mídia>`;
-            const botMessage: Message[0] = {
-              content: `(Paçoca): ${action.message?.text || `<enviou ${action.type}>`}`,
-              name: "Paçoca", jid: "", ia: true,
-            };
-            // Adiciona a resposta do bot à memória correta
-            currentMessages.push(botMessage);
-            await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
-        }
-        // Se a conversa for em grupo, atualiza a memória de mensagens do grupo
-        if(isGroup) {
-            messages = currentMessages;
-        } else {
-            privateMessages.set(sessionId, currentMessages);
-        }        
+        }    
         // Se a resposta foi em um chat privado, atualize o timer de atividade
         if (!isGroup) {
             privateChatActivity.set(sessionId, Date.now());

@@ -1,6 +1,5 @@
 //src/inteligence/generateResponse.ts
 import { ChatCompletionMessageParam } from "openai/resources";
-import * as fs from "fs";
 import { openai } from "../services/openai";
 import { Data } from "../utils/database";
 import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
@@ -166,68 +165,66 @@ export default async function generateResponse(
   beautifulLogger.aiGeneration("tokens", { "tokens de entrada (estimado)": inputTokens });
   beautifulLogger.aiGeneration("processing", "Enviando requisição para a IA...");
 
-  const response = await openai.chat.completions.create({
-    model: MODEL_NAME,
-    messages: inputMessages,
-    response_format: RESPONSE_SCHEMA,
-    temperature: 0.8,
-    max_tokens: 200, // Aumentei um pouco para dar mais liberdade à IA
-  });
-
-  // Adicionamos uma verificação de segurança explícita para o array 'choices'.
-  if (!response.choices || response.choices.length === 0 || !response.choices[0].message) {
-    beautifulLogger.aiGeneration("error", "A IA não retornou nenhuma opção de resposta (array 'choices' vazio).");
-    // Lançamos um erro claro para ser capturado pelo rapy.ts
-    throw new Error("A IA não retornou nenhuma opção de resposta válida.");
-  }
-
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
-    beautifulLogger.aiGeneration("error", "Nenhuma resposta foi gerada pela IA.");
-    throw new Error("Nenhuma resposta foi gerada pela IA.");
-  }
-
-  const outputTokens = calculateTokens(content);
-  const totalTokens = inputTokens + outputTokens;
-  const cost = (inputTokens * MODEL_PRICING.input / 100000 / 2) + (outputTokens * MODEL_PRICING.output / 100000 / 2);
-
-  const costMessage = cost === 0 ? `$${cost.toFixed(8)} (modelo gratuito)` : `$${cost.toFixed(8)}`;
-
-  beautifulLogger.aiGeneration("cost", {
-    "modelo utilizado": MODEL_NAME,
-    "tokens entrada (est.)": inputTokens,
-    "tokens saída (est.)": outputTokens,
-    "tokens total (est.)": totalTokens,
-    "custo (USD)": costMessage,
-  });
-
   try {
+    const response = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: inputMessages,
+      response_format: RESPONSE_SCHEMA,
+      temperature: 0.8,
+      max_tokens: 200, // Aumentei para dar mais liberdade à IA
+    }, {
+      // 2º Argumento: As opções da requisição
+      timeout: 30 * 1000, // 30 segundos
+    });
+
+    if (!response.choices || response.choices.length === 0 || !response.choices[0].message) {
+      throw new Error("A IA não retornou nenhuma opção de resposta (array 'choices' vazio).");
+    }
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("Nenhuma resposta foi gerada pela IA (conteúdo vazio).");
+    }
+
+    const outputTokens = calculateTokens(content);
+    const totalTokens = inputTokens + outputTokens;
+    const cost = (inputTokens * MODEL_PRICING.input / 100000 / 2) + (outputTokens * MODEL_PRICING.output / 100000 / 2);
+    const costMessage = cost === 0 ? `$${cost.toFixed(8)} (modelo gratuito)` : `$${cost.toFixed(8)}`;
+
+    beautifulLogger.aiGeneration("cost", {
+      "modelo utilizado": MODEL_NAME,
+      "tokens entrada (est.)": inputTokens,
+      "tokens saída (est.)": outputTokens,
+      "tokens total (est.)": totalTokens,
+      "custo (USD)": costMessage,
+    });
+    
     // Usamos a expressão regular para encontrar o trecho de JSON, possiveis formatações de markdown.
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-
-    if (jsonMatch && jsonMatch[0]) {
-      const jsonString = jsonMatch[0];
-      const parsedResponse = JSON.parse(jsonString) as { actions: BotResponse };
-
-      if (!Array.isArray(parsedResponse.actions)) {
-        throw new Error("O JSON extraído não contém um array de 'actions' válido.");
-      }
-
-      beautifulLogger.aiGeneration("complete", {
-        "ações processadas": parsedResponse.actions.length,
-        "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
-      });
-      
-      return { actions: parsedResponse.actions, cost: { inputTokens, outputTokens, totalTokens, cost } };
-
-    } else {
+    if (!jsonMatch || !jsonMatch[0]) {
       // Se não encontrarmos nenhum trecho de JSON, lançamos um erro claro.
       throw new Error("Nenhum bloco JSON válido foi encontrado na resposta da IA.");
     }
-  } catch (error) {
+
+    const jsonString = jsonMatch[0];
+    const parsedResponse = JSON.parse(jsonString) as { actions: BotResponse };
+
+    if (!Array.isArray(parsedResponse.actions)) {
+      throw new Error("O JSON extraído não contém um array de 'actions' válido.");
+    }
+
+    beautifulLogger.aiGeneration("complete", {
+      "ações processadas": parsedResponse.actions.length,
+      "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
+    });
+    
+    return { actions: parsedResponse.actions, cost: { inputTokens, outputTokens, totalTokens, cost } };
+
+  } catch (error: any) {
+    // ALTERAÇÃO 2: Capturamos o erro e o logamos de forma mais detalhada
     beautifulLogger.aiGeneration("error", {
-      erro: "Falha ao analisar o JSON extraído da resposta da IA.",
-      "conteúdo recebido": content,
+      erro: "Falha crítica na chamada da API ou na análise da resposta.",
+      "mensagem de erro": error.message,
     });
     // Lançamos o erro para que o 'catch' principal em rapy.ts possa lidar com ele.
     throw error;

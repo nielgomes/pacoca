@@ -75,6 +75,13 @@ Resposta: \`{"actions":[]}\`
 📌 EXEMPLO DE NÃO RESPOSTA (não relevante):
 Mensagem: "1 - (Pedro{userid: 789 (messageid: 012)}): alguém sabe onde comprar pneu?"
 Resposta: \`{"actions":[]}\`
+
+---
+REGRAS RÍGIDAS DE SAÍDA:
+- Sua resposta DEVE SER APENAS o objeto JSON válido que se conforma com o schema fornecido.
+- NUNCA inclua qualquer texto, explicação, comentário, ou markdown (como \`\`\`json) antes ou depois do objeto JSON.
+- Seja extremamente conciso nas suas respostas de texto para caber no chat. Evite mensagens longas.
+- O JSON deve ser a única coisa na sua saída.
 `;
 
 export default PERSONALITY_PROMPT;

@@ -7,8 +7,8 @@ import {
   proto,
   WAPresence,
   ConnectionState,
- // extractMessageContent,
   MessageUpsertType,
+  downloadMediaMessage,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import qrcode from "qrcode-terminal";
@@ -25,7 +25,8 @@ export type MessageHandler = (
   senderInfo?: {
     jid: string;
     name?: string;
-  }
+  },
+  mediaPath?: string // <-- ADICIONAR ESTA PROPRIEDADE OPCIONAL
 ) => void;
 
 const OFFLINE_DELAY_MS = 60_000;
@@ -121,19 +122,6 @@ export default class Whatsapp {
     if (type !== "notify") return;
 
     for (const msg of messages) {
-      // --- PONTO DE DEBUG 2: ELE ESCUTOU ALGUMA COISA? ---
-      /*const messageContent = extractMessageContent(msg.message);
-      let textContent = " (não é uma mensagem de texto)";
-      if (messageContent?.conversation) {
-        textContent = `: "${messageContent.conversation}"`;
-      } else if (messageContent?.extendedTextMessage) {
-        textContent = `: "${messageContent.extendedTextMessage.text}"`;
-      }
-      console.log(`📬 Mensagem recebida de ${msg.key.remoteJid}${textContent}`);
-      */
-      /*Força uma atualização de presença para o remetente da mensagem.
-        Isso age como um "handshake", garantindo que a sessão criptográfica seja
-        estabelecida corretamente antes de tentarmos enviar uma resposta. */
 
       const sessionId = msg.key.remoteJid;
       if (!sessionId) continue;
@@ -166,10 +154,36 @@ export default class Whatsapp {
 
       if (content.conversation || content.extendedTextMessage) {
         this.onMessage?.(sessionId, msg, "text", senderInfo);
-      } else if (content.imageMessage) {
-        this.onMessage?.(sessionId, msg, "image", senderInfo);
-      } else if (content.audioMessage) {
-        this.onMessage?.(sessionId, msg, "audio", senderInfo);
+
+      } else if (content.imageMessage || content.audioMessage) { // AGRUPAMOS A LÓGICA
+        try {
+          // Faz o download da mídia em um buffer
+          const buffer = await downloadMediaMessage(
+            msg,
+            "buffer",
+            {},
+            { logger: this.sock?.logger, reuploadRequest: this.sock?.updateMediaMessage! }
+          );
+
+          // Define um nome de arquivo único e o caminho para a pasta temp
+          const fileType = content.imageMessage ? 'jpg' : 'ogg';
+          const tempFilePath = path.join(getHomeDir(), 'temp', `${msg.key.id}.${fileType}`);
+
+          // Salva o buffer no arquivo
+          await fs.promises.writeFile(tempFilePath, buffer);
+
+          console.log(`📥 Mídia salva em: ${tempFilePath}`);
+
+          // Chama o handler com o tipo e o caminho do arquivo
+          if (content.imageMessage) {
+            this.onMessage?.(sessionId, msg, "image", senderInfo, tempFilePath);
+          } else if (content.audioMessage) {
+            this.onMessage?.(sessionId, msg, "audio", senderInfo, tempFilePath);
+          }
+
+        } catch (error) {
+          console.error("❌ Erro ao baixar ou salvar mídia:", error);
+        }
       } else if (content.documentMessage) {
         this.onMessage?.(sessionId, msg, "document", senderInfo);
       }
