@@ -11,6 +11,10 @@ import beautifulLogger from "./utils/beautifulLogger";
 import silenceRapy from "./inteligence/silenceRapy";
 import generateSearchResponse from './inteligence/generateSearchResponse';
 import generateConversationStarter from './inteligence/generateConversationStarter';
+import fs from "fs/promises"; 
+import analyzeAudio from "./inteligence/analyzeAudio"; 
+import analyzeImage from "./inteligence/analyzeImage";
+
 
 let messages: Message[] = [];
 const privateMessages = new Map<string, Message[]>();
@@ -71,8 +75,46 @@ export default async function rapy(whatsapp: Whatsapp) {
   let isGenerating = false;
   let recentMessageTimes: number[] = [];
 
-whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo) => {
-    if (type !== "text") return;
+whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPath) => {
+
+  if (type === "audio" || type === "image") {
+    if (!mediaPath) return; // Se não houver caminho de mídia, ignora
+   const senderJid = senderInfo?.jid || sessionId;
+    const senderName = senderInfo?.name || "Desconhecido";
+    const currentMessages = sessionId.endsWith('@g.us') ? messages : (privateMessages.get(sessionId) || []);
+    
+    let analysisResult = "";
+   if (type === "audio") {
+      beautifulLogger.info("GEMINI", `Processando áudio de ${senderName}...`);
+      analysisResult = await analyzeAudio(mediaPath);
+    } else { // type === "image"
+      beautifulLogger.info("GEMINI", `Processando imagem de ${senderName}...`);
+      const userCaption = msg.message?.imageMessage?.caption || "";
+      analysisResult = await analyzeImage(mediaPath, userCaption);
+    }
+   // Limpa o arquivo temporário
+    try {
+      await fs.unlink(mediaPath);
+      beautifulLogger.info("CLEANUP", `Arquivo temporário ${mediaPath} removido.`);
+    } catch(e) {
+      beautifulLogger.error("CLEANUP", `Falha ao remover arquivo temporário ${mediaPath}`, e);
+    }
+   // Adiciona o resultado da análise ao histórico de mensagens como contexto
+    const contextMessage: Message[0] = {
+      content: `(Contexto de ${type} enviado por ${senderName}): ${analysisResult}`,
+      name: senderName,
+      jid: senderJid,
+      ia: false, // É um fato, não uma fala da IA
+    };
+    currentMessages.push(contextMessage);
+   // Agora, acionamos a resposta da IA, que verá o contexto
+    // Usamos uma pequena pausa para simular que ele "ouviu/viu" e está pensando
+    setTimeout(processResponse, 1000); 
+   // Encerra aqui o fluxo para mídias
+    return;
+  }  
+
+  if (type !== "text") return;
     const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
     // --- INÍCIO DO CÓDIGO DO COMANDO /call ---
     if (content?.toLowerCase().startsWith("/call")) {
