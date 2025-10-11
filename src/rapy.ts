@@ -280,6 +280,8 @@ export default async function rapy(whatsapp: Whatsapp) {
 
     whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPath) => {
         const isGroup = sessionId.endsWith('@g.us');
+        const senderName = isGroup ? senderInfo?.name || "Desconhecido" : msg.pushName || "Desconhecido";
+        const senderJid = isGroup ? senderInfo!.jid : sessionId;
         // A variável `currentMessages` agora é a fonte da verdade para esta interação.
         const currentMessages = isGroup ? messages : (privateMessages.get(sessionId) || []);
         if (!isGroup && currentMessages.length === 0) { // Garante que o array exista para conversas privadas
@@ -290,9 +292,6 @@ export default async function rapy(whatsapp: Whatsapp) {
             if (!mediaPath) return;
 
             await whatsapp.setTyping(sessionId);
-
-            const senderJid = senderInfo?.jid || sessionId;
-            const senderName = senderInfo?.name || "Desconhecido";
             
             let analysisResult = "";
             if (type === "audio") {
@@ -312,7 +311,7 @@ export default async function rapy(whatsapp: Whatsapp) {
 
             const contextMessage: Message[0] = {
               // A mensagem agora é uma observação interna do Paçoca
-              content: `(Paçoca pensou sobre a ${type} que recebeu: "${analysisResult}")`,
+              content: `(Paçoca pensou sobre a ${type} que recebeu de ${senderName}: "${analysisResult}")`,
               // O autor da "mensagem" é o próprio Paçoca
               name: "Paçoca",
               // Não está associado a nenhum usuário específico
@@ -497,9 +496,6 @@ export default async function rapy(whatsapp: Whatsapp) {
     // --- FIM DO GATILHO DO NOVO AGENTE DE PESQUISA ONLINE ---
 
         if (!content) return;
-
-        const senderJid = isGroup ? senderInfo!.jid : sessionId;
-        const senderName = isGroup ? senderInfo!.name : msg.pushName || "Desconhecido";
 
         currentMessages.push({
             content: `(${senderName}{userid: ${senderJid}}): ${content}`,
