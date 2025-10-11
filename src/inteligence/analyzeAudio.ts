@@ -29,7 +29,7 @@ function fileToGenerativePart(path: string, mimeType: string) {
  */
 export default async function analyzeAudio(audioPath: string): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const audioMimeType = "audio/ogg"; // Baileys geralmente baixa como ogg
 
         console.log(`🎧 Analisando áudio: ${audioPath}`);

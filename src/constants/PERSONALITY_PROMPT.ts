@@ -82,6 +82,7 @@ REGRAS RÍGIDAS DE SAÍDA:
 - NUNCA inclua qualquer texto, explicação, comentário, ou markdown (como \`\`\`json) antes ou depois do objeto JSON.
 - Seja extremamente conciso nas suas respostas de texto para caber no chat. Evite mensagens longas.
 - O JSON deve ser a única coisa na sua saída.
+- IMPORTANTE: Limite sua resposta a um máximo de 3 a 5 ações por vez para manter a conversa natural e evitar spam.
 `;
 
 export default PERSONALITY_PROMPT;

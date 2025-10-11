@@ -25,14 +25,14 @@ function fileToGenerativePart(path: string, mimeType: string) {
  */
 export default async function analyzeImage(imagePath: string, userText?: string): Promise<string> {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
         const imageMimeType = "image/jpeg"; // Assumindo jpeg, pode ser ajustado
 
         console.log(`🖼️ Analisando imagem: ${imagePath}`);
 
         const imagePart = fileToGenerativePart(imagePath, imageMimeType);
 
-        const prompt = `Analise esta imagem. Seja descritivo e direto. Se o usuário enviou um texto junto, considere-o no seu comentário. O texto do usuário foi: "${userText || 'Nenhum'}"`;
+        const prompt = `Sua tarefa é descrever o conteúdo de uma imagem de forma objetiva e concisa para que outra IA possa usar sua descrição para conversar sobre ela. Não faça elogios, análises subjetivas ou comentários sobre a qualidade. Apenas descreva os elementos visuais presentes. Se houver um texto do usuário junto com a imagem, use-o como contexto para sua descrição. Texto do usuário: "${userText || 'Nenhum'}"\n\nDescrição objetiva da imagem:`;
 
         const result = await model.generateContent([prompt, imagePart]);
         const response = result.response;

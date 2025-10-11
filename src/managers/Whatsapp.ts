@@ -206,7 +206,7 @@ export default class Whatsapp {
   async sendText(jid: string, text: string) {
     if (!this.sock) throw new Error("Não conectado");
     // --- PONTO DE DEBUG 3: ELE TENTOU ENVIAR ALGUMA MENSAGEM? ---
-    //console.log(`📤 Tentando enviar texto para ${jid}: "${text}"`);
+    console.log(`📤 Tentando enviar texto para ${jid}: "${text}"`);
 
     await this.sock.sendMessage(jid, { text });
   }

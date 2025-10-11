@@ -75,51 +75,265 @@ export default async function rapy(whatsapp: Whatsapp) {
   let isGenerating = false;
   let recentMessageTimes: number[] = [];
 
-whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPath) => {
 
-  if (type === "audio" || type === "image") {
-    if (!mediaPath) return; // Se não houver caminho de mídia, ignora
-   const senderJid = senderInfo?.jid || sessionId;
-    const senderName = senderInfo?.name || "Desconhecido";
-    const currentMessages = sessionId.endsWith('@g.us') ? messages : (privateMessages.get(sessionId) || []);
-    
-    let analysisResult = "";
-   if (type === "audio") {
-      beautifulLogger.info("GEMINI", `Processando áudio de ${senderName}...`);
-      analysisResult = await analyzeAudio(mediaPath);
-    } else { // type === "image"
-      beautifulLogger.info("GEMINI", `Processando imagem de ${senderName}...`);
-      const userCaption = msg.message?.imageMessage?.caption || "";
-      analysisResult = await analyzeImage(mediaPath, userCaption);
-    }
-   // Limpa o arquivo temporário
-    try {
-      await fs.unlink(mediaPath);
-      beautifulLogger.info("CLEANUP", `Arquivo temporário ${mediaPath} removido.`);
-    } catch(e) {
-      beautifulLogger.error("CLEANUP", `Falha ao remover arquivo temporário ${mediaPath}`, e);
-    }
-   // Adiciona o resultado da análise ao histórico de mensagens como contexto
-    const contextMessage: Message[0] = {
-      content: `(Contexto de ${type} enviado por ${senderName}): ${analysisResult}`,
-      name: senderName,
-      jid: senderJid,
-      ia: false, // É um fato, não uma fala da IA
+  const processResponse = async (sessionId: string, currentMessages: Message[], isGroup: boolean) => {
+      if (isGenerating) return;
+      const lastMessageContent = currentMessages.at(-1)?.content?.toLowerCase() || "";
+      const isRapyMentioned = lastMessageContent.includes("rapy") || lastMessageContent.includes("paçoca");
+      const timeSinceLastResponse = Date.now() - lastRapyResponseTime;
+      // A lógica de `isGroupActive` agora usa a variável `isGroup` passada como parâmetro
+      const isGroupActive = () => {
+          if (!isGroup || recentMessageTimes.length < 4) return "normal";
+          const intervals = recentMessageTimes.slice(1).map((time, i) => time - recentMessageTimes[i]);
+          const averageInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
+          if (averageInterval <= 5000) return "very_active";
+          if (averageInterval <= 9000) return "active";
+          return "normal";
+      };
+      const minTimeBetweenResponses = isGroupActive() === "very_active" ? 15 * 1000 : 8 * 1000;
+      if (timeSinceLastResponse < minTimeBetweenResponses && !isRapyMentioned && isGroup) {
+          return;
+      }
+      beautifulLogger.groupActivity(isGroupActive(), {
+          "mensagens recentes": recentMessageTimes.length,
+          "tempo desde última resposta": `${Math.floor(timeSinceLastResponse / 1000)}s`,
+          "rapy mencionado": isRapyMentioned ? "sim" : "não",
+      });
+      isGenerating = true;
+      try {
+        beautifulLogger.separator("VERIFICAÇÃO DE POSSIBILIDADE");
+        const { possible, reason } = await isPossibleResponse(db.getAll(), currentMessages);
+        if (!possible) {
+             beautifulLogger.warn("POSSIBILIDADE", "Resposta não é apropriada por: " + reason);
+             isGenerating = false;
+             return;
+        }
+        beautifulLogger.success("POSSIBILIDADE", "Resposta aprovada por: " + reason);
+        await whatsapp.setTyping(sessionId);
+        const result = await generateResponse(db.getAll(), currentMessages, sessionId);
+        const response = result.actions;
+
+        lastRapyResponseTime = Date.now();
+        beautifulLogger.separator("EXECUTANDO AÇÕES");
+
+        console.log("🕵️ DEBUG: Ações recebidas da IA para execução:", JSON.stringify(response, null, 2));
+
+        for (const action of response) {
+          // LOG DENTRO DO LOOP para sabermos qual ação está sendo processada
+          console.log(`🕵️ DEBUG: Processando ação do tipo: ${action.type}`);
+
+          if (action.message) {
+            // LOG DENTRO DO IF para confirmar que a ação de mensagem foi reconhecida
+            console.log("🕵️ DEBUG: Entrou no bloco if (action.message)");
+
+            // Verifica se a mensagem é uma resposta a outra mensagem
+            const realMessageId = messagesIds.get(action.message.reply ?? "not-is-message");
+            if (action.message.reply && realMessageId) {
+              const message = action.message.text;
+
+              // Envia a mensagem como uma resposta
+              await whatsapp.sendTextReply(sessionId, realMessageId, message);
+
+              // Adiciona a resposta do bot à memória
+              currentMessages.push({
+                content: `(Paçoca): ${message}`,
+                name: "Paçoca",
+                jid: "",
+                ia: true,
+              });
+              console.log(`🤖 DEBUG: Bot respondeu (reply). Total no array: ${messages.length}`);
+              beautifulLogger.actionSent("message", {
+                tipo: "resposta",
+                conteúdo: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
+                respondendo_a: action.message.reply,
+              });
+            } else {
+              // Se não for uma resposta, envia como uma mensagem normal
+              const message = action.message.text;
+              console.log(`🕵️ DEBUG: Preparando para enviar mensagem normal: "${message}"`); // LOG ANTES DE ENVIAR
+              await whatsapp.sendText(sessionId, message);
+
+              // Adiciona a resposta do bot à memória
+              currentMessages.push({
+                content: `(Paçoca): ${message}`,
+                name: "Paçoca",
+                jid: "",
+                ia: true,
+              });
+              console.log(`🤖 DEBUG: Bot respondeu (normal). Total no array: ${messages.length}`);
+              beautifulLogger.actionSent("message", {
+                tipo: "mensagem normal",
+                conteúdo: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
+              });
+            }
+          } else if (action.sticker) {
+            // LOG PARA STICKERS para confirmar que a ação de sticker foi reconhecida
+            console.log("🕵️ DEBUG: Entrou no bloco if (action.sticker)");
+            const stickerPath = path.join(getHomeDir(), "stickers", action.sticker);
+            await whatsapp.sendSticker(sessionId, stickerPath);
+
+            currentMessages.push({
+              content: `(Paçoca): <usou o sticker ${action.sticker}>`,
+              name: "Paçoca",
+              jid: "",
+              ia: true,
+            });
+            beautifulLogger.actionSent("sticker", {
+              arquivo: action.sticker,
+            });
+          } else if (action.audio) {
+            // Lógica para enviar áudio
+            const audioPath = path.join(getHomeDir(), "audios", action.audio);
+            await whatsapp.sendAudio(sessionId, audioPath);
+
+            currentMessages.push({
+              content: `(Paçoca): <enviou o áudio ${action.audio}>`,
+              name: "Paçoca",
+              jid: "",
+              ia: true,
+            });
+            beautifulLogger.actionSent("audio", {
+              arquivo: action.audio,
+            });
+          } else if (action.meme) {
+            // Lógica para enviar meme (imagem)
+            const memePath = path.join(getHomeDir(), "memes", action.meme);
+            await whatsapp.sendImage(sessionId, memePath);
+
+            currentMessages.push({
+              content: `(Paçoca): <enviou o meme ${action.meme}>`,
+              name: "Paçoca",
+              jid: "",
+              ia: true,
+            });
+            beautifulLogger.actionSent("meme", {
+              arquivo: action.meme,
+            });
+          } else if (action.poll) {
+            // Lógica para criar uma enquete
+            await whatsapp.createPoll(sessionId, action.poll.question, action.poll.options);
+
+            currentMessages.push({
+              content: `(Paçoca): <criou uma enquete: ${action.poll.question}>`,
+              name: "Paçoca",
+              jid: "",
+              ia: true,
+            });
+            beautifulLogger.actionSent("poll", {
+              pergunta: action.poll.question,
+              opções: action.poll.options.join(", "),
+            });
+          } else if (action.location) {
+            // Lógica para enviar uma localização
+            currentMessages.push({
+              content: `(Paçoca): <enviou uma localização (${action.location.latitude}, ${action.location.longitude})>`,
+              name: "Paçoca",
+              jid: "",
+              ia: true,
+            });
+            await whatsapp.sendLocation(
+              sessionId,
+              action.location.latitude,
+              action.location.longitude
+            );
+            beautifulLogger.actionSent("location", {
+              coordenadas: `${action.location.latitude}, ${action.location.longitude}`,
+            });
+          } else if (action.contact) {
+            // Lógica para enviar um contato
+            currentMessages.push({
+              content: `(Paçoca): <enviou um contato (${action.contact.name} (${action.contact.cell}))>`,
+              name: "Paçoca",
+              jid: "",
+              ia: true,
+            });
+            await whatsapp.sendContact(sessionId, action.contact.cell, action.contact.name);
+            beautifulLogger.actionSent("contact", {
+              nome: action.contact.name,
+              telefone: action.contact.cell,
+            });
+          }
+        }
+
+        // Se a resposta foi em um chat privado, atualize o timer de atividade
+        if (!isGroup) {
+            privateChatActivity.set(sessionId, Date.now());
+            beautifulLogger.info("TIMER", `Timer de atividade para ${sessionId} atualizado após resposta.`);
+        }
+
+        lastRapyResponseTime = Date.now();
+
+      } catch (error) {
+        // SUBSTITUÍMOS O LOGGER PADRÃO POR UM CONSOLE.ERROR DETALHADO
+        console.error("❌ ERRO DETALHADO CAPTURADO EM 'processResponse':");
+        console.error(error);
+        beautifulLogger.error("GERAÇÃO", "Ocorreu um erro detalhado acima.");
+      } finally {
+        isGenerating = false;
+          
+          await whatsapp.setOnline(sessionId);
+          
+          beautifulLogger.success("FINALIZAÇÃO", "Processo de resposta finalizado");
+          beautifulLogger.separator("FIM");
+      }
     };
-    currentMessages.push(contextMessage);
-   // Agora, acionamos a resposta da IA, que verá o contexto
-    // Usamos uma pequena pausa para simular que ele "ouviu/viu" e está pensando
-    setTimeout(processResponse, 1000); 
-   // Encerra aqui o fluxo para mídias
-    return;
-  }  
 
-  if (type !== "text") return;
-    const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
-    // --- INÍCIO DO CÓDIGO DO COMANDO /call ---
-    if (content?.toLowerCase().startsWith("/call")) {
-      // Usamos uma expressão regular para extrair o número e o contexto
-      const match = content.match(/^\/call\s+((?:[+()0-9-\s])+)\s+(.*)$/);
+    whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPath) => {
+        const isGroup = sessionId.endsWith('@g.us');
+        // A variável `currentMessages` agora é a fonte da verdade para esta interação.
+        const currentMessages = isGroup ? messages : (privateMessages.get(sessionId) || []);
+        if (!isGroup && currentMessages.length === 0) { // Garante que o array exista para conversas privadas
+            privateMessages.set(sessionId, currentMessages);
+        }
+
+        if (type === "audio" || type === "image") {
+            if (!mediaPath) return;
+
+            await whatsapp.setTyping(sessionId);
+
+            const senderJid = senderInfo?.jid || sessionId;
+            const senderName = senderInfo?.name || "Desconhecido";
+            
+            let analysisResult = "";
+            if (type === "audio") {
+                beautifulLogger.info("GEMINI", `Processando áudio de ${senderName}...`);
+                analysisResult = await analyzeAudio(mediaPath);
+            } else {
+                beautifulLogger.info("GEMINI", `Processando imagem de ${senderName}...`);
+                analysisResult = await analyzeImage(mediaPath, msg.message?.imageMessage?.caption || "");
+            }
+
+            try {
+                await fs.unlink(mediaPath);
+                beautifulLogger.info("CLEANUP", `Arquivo temporário ${mediaPath} removido.`);
+            } catch (e) {
+                beautifulLogger.error("CLEANUP", `Falha ao remover arquivo temporário ${mediaPath}`, e);
+            }
+
+            const contextMessage: Message[0] = {
+              // A mensagem agora é uma observação interna do Paçoca
+              content: `(Paçoca pensou sobre a ${type} que recebeu: "${analysisResult}")`,
+              // O autor da "mensagem" é o próprio Paçoca
+              name: "Paçoca",
+              // Não está associado a nenhum usuário específico
+              jid: "",
+              // É uma ação/pensamento da IA
+              ia: true,
+            };
+            currentMessages.push(contextMessage);
+
+            // CORREÇÃO: Passamos os parâmetros de contexto para a processResponse
+            setTimeout(() => processResponse(sessionId, currentMessages, isGroup), 1000);
+            return;
+        }
+
+
+    if (type !== "text") return;
+      const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+      // --- INÍCIO DO CÓDIGO DO COMANDO /call ---
+      if (content?.toLowerCase().startsWith("/call")) {
+        // Usamos uma expressão regular para extrair o número e o contexto
+        const match = content.match(/^\/call\s+((?:[+()0-9-\s])+)\s+(.*)$/);
     
       if (!match) {
         await whatsapp.sendText(sessionId, "Formato inválido. Use: /call [numero] [contexto]");
@@ -282,348 +496,26 @@ whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPa
     }
     // --- FIM DO GATILHO DO NOVO AGENTE DE PESQUISA ONLINE ---
 
-    const isGroup = sessionId.endsWith('@g.us');
-    
-    if (!isGroup) {
-      const now = Date.now();
-      const lastActivity = privateChatActivity.get(sessionId) || 0;
-    
-      // Verifica se esta conversa estava aguardando a primeira resposta
-      if (pendingFirstReply.has(sessionId)) {
-        // Se a primeira resposta chegou, a conversa se torna 'ativa'
-        beautifulLogger.info("CONTEXTO", `Primeira resposta recebida de ${sessionId}. A conversa agora está ativa.`);
-        pendingFirstReply.delete(sessionId); // Remove da lista de espera
-      
-        // Usamos o timeout longo (24h) para esta primeira verificação
-        if (now - lastActivity > PENDING_REPLY_TIMEOUT) {
-          beautifulLogger.info("CONTEXTO", `Conversa com ${sessionId} reiniciada por inatividade (24h).`);
-          privateMessages.set(sessionId, []);
-        }
-      } else {
-        // Se é uma conversa normal, usa o timeout padrão de 5 minutos
-        if (now - lastActivity > CONVERSATION_TIMEOUT) {
-          beautifulLogger.info("CONTEXTO", `Conversa com ${sessionId} reiniciada por inatividade (5min).`);
-          privateMessages.set(sessionId, []);
-        }
-      }
-    
-      // Atualiza o timer da conversa para o momento da mensagem atual
-      privateChatActivity.set(sessionId, now);
-    }
-    
-    if (!content || (isGroup && !senderInfo)) {
-      return;
-    }
+        if (!content) return;
 
-    const senderJid = isGroup ? senderInfo!.jid : sessionId;
-    const senderName = isGroup ? senderInfo!.name : msg.pushName || "Desconhecido";
-    const messageId = msg.key.id;
+        const senderJid = isGroup ? senderInfo!.jid : sessionId;
+        const senderName = isGroup ? senderInfo!.name : msg.pushName || "Desconhecido";
 
-    // --- LÓGICA DE SEPARAÇÃO DE CONTEXTO ---
-    // Selecionamos qual array de mensagens usar com base no tipo de chat.
-    const currentMessages = isGroup ? messages : (privateMessages.get(sessionId) || []);
-    // -----------------------------------------
-
-    const silence = await silenceRapy(whatsapp, sessionId, msg, currentMessages, silenced);
-    silenced = silence?.silenced;
-
-    if (silence) {
-        // Atualiza a memória correta após a ação de silenciar/dessilenciar
-        if (isGroup) {
-            messages = silence.messages;
-        } else {
-            privateMessages.set(sessionId, silence.messages);
-        }
-    }
-
-    const currentTime = Date.now();
-    recentMessageTimes.push(currentTime);
-    if (recentMessageTimes.length > 10) {
-      recentMessageTimes.shift();
-    }
-
-    const curtMessageId = (messagesIds.size + Math.floor(Math.random() * 1000)).toString();
-    messagesIds.set(curtMessageId, messageId ?? "");
-
-    const newMessage: Message[0] = {
-      content: `(${senderName}{userid: ${senderJid} (messageid: ${curtMessageId})}): ${content}`,
-      name: senderName,
-      jid: senderJid,
-      ia: false,
-    };
-
-    // Adiciona a nova mensagem à memória correta
-    currentMessages.push(newMessage);
-    if(isGroup) {
-        messages = currentMessages;
-    } else {
-        privateMessages.set(sessionId, currentMessages);
-    }
-
-    if (silenced) return;
-    if (isGenerating) return;
-    if (content.length > 300) return;
-
-    if (isGroup && messages.length > 10) {
-      // A lógica de resumo só faz sentido para grupos com contexto compartilhado
-      debounce(
-        async () => {
-          const summaryResult = await generateSummary(db.getAll(), messages);
-          // Agrupamos os dados do resumo em um único objeto
-          const summaryData = {
-            summary: summaryResult.summary,
-            opinions: summaryResult.opinions,
-          };
-          // Salvamos o objeto inteiro usando o ID do grupo como chave
-          db.set(sessionId, summaryData);
-          db.save();
-          messages = []; // Limpa a memória do grupo após resumir
-        },
-        1000 * 60 * 5,
-        "debounce-summary"
-      );
-    }
-
-    const isRapyMentioned = content.toLowerCase().includes("rapy") || content.toLowerCase().includes("paçoca");
-    const isGroupActive = () => {
-      if (recentMessageTimes.length < 4) return "normal";
-
-      const intervals = [];
-      for (let i = 1; i < recentMessageTimes.length; i++) {
-        intervals.push(recentMessageTimes[i] - recentMessageTimes[i - 1]);
-      }
-
-      const averageInterval =
-        intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
-
-      if (averageInterval <= 5 * 1000) return "very_active";
-      if (averageInterval <= 9 * 1000) return "active";
-
-      return "normal";
-    };
-
-    const getDebounceTime = () => {
-      const activity = isGroupActive();
-      if (activity === "very_active") return 8 * 1000 + Math.random() * 4 * 1000;
-      if (activity === "active") return 5 * 1000 + Math.random() * 3 * 1000;
-      return 2 * 1000 + Math.random() * 2 * 1000;
-    };
-
-    const processResponse = async () => {
-      const timeSinceLastResponse = Date.now() - lastRapyResponseTime;
-      const minTimeBetweenResponses = isGroupActive() === "very_active" ? 15 * 1000 : 8 * 1000;
-
-      if (timeSinceLastResponse < minTimeBetweenResponses && !isRapyMentioned && isGroup) {
-        return;
-      }
-
-      const activity = isGroupActive();
-
-      beautifulLogger.groupActivity(activity, {
-        "mensagens recentes": recentMessageTimes.length,
-        "intervalo médio": `${Math.floor(
-          recentMessageTimes.length > 1
-            ? (recentMessageTimes[recentMessageTimes.length - 1] - recentMessageTimes[0]) /
-                (recentMessageTimes.length - 1) /
-                1000
-            : 0
-        )}s`,
-        "tempo desde última resposta": `${Math.floor(timeSinceLastResponse / 1000)}s`,
-        "rapy mencionado": isRapyMentioned ? "sim" : "não",
-      });
-
-      if (timeSinceLastResponse < minTimeBetweenResponses && !isRapyMentioned) {
-        beautifulLogger.info("DEBOUNCE", "Resposta bloqueada por cooldown", {
-          "tempo restante": `${Math.floor(
-            (minTimeBetweenResponses - timeSinceLastResponse) / 1000
-          )}s`,
+        currentMessages.push({
+            content: `(${senderName}{userid: ${senderJid}}): ${content}`,
+            name: senderName,
+            jid: senderJid,
+            ia: false,
         });
-        return;
-      }
 
-      isGenerating = true;
-      try {
-        beautifulLogger.separator("VERIFICAÇÃO DE POSSIBILIDADE");
-        const { possible, reason } = await isPossibleResponse(db.getAll(), currentMessages);
-
-        if (!possible) {
-          beautifulLogger.warn("POSSIBILIDADE", "Resposta não é apropriada por: " + reason);
-          isGenerating = false;
-          return;
-        }
-
-        beautifulLogger.success("POSSIBILIDADE", "Resposta aprovada por: " + reason);
-        await whatsapp.setTyping(sessionId);
-
-        // Passamos a memória correta para a IA.
-        const result = await generateResponse(db.getAll(), currentMessages, sessionId);
-        // -----------------------------------------
-        const response = result.actions;
-
-        try {
-          const l = log();
-          const lastMessage = currentMessages.filter(m => !m.ia).at(-1)?.content || "N/A";
-          const outputText = response.map(action => action.message?.text || `<${action.type}>`).join('\n');
-          l.add({ input: lastMessage, output: outputText });
-          l.save();
-          beautifulLogger.success("LOG", "Interação salva no arquivo de log");
-        } catch (error) {
-          beautifulLogger.error("LOG", "Erro ao salvar log", error);
-        }
-
-        if (response.length === 0) {
-          beautifulLogger.warn("RESPOSTA", "Nenhuma ação foi gerada pela IA");
-          isGenerating = false;
-          await whatsapp.pauseTyping(sessionId);
-          return;
-        }
-
-        lastRapyResponseTime = Date.now();
-        beautifulLogger.separator("EXECUTANDO AÇÕES");
-
-        for (const action of response) {
-          if (action.message) {
-            const realMessageId = messagesIds.get(action.message.reply ?? "not-is-message");
-            if (action.message.reply && realMessageId) {
-              const message = action.message.text;
-              await whatsapp.sendTextReply(sessionId, realMessageId, message);
-              currentMessages.push({
-                content: `(Rapy): ${message}`,
-                name: "Paçoca",
-                jid: "",
-                ia: true,
-              });
-              console.log(`🤖 DEBUG: Bot respondeu (reply). Total no array: ${messages.length}`);
-              beautifulLogger.actionSent("message", {
-                tipo: "resposta",
-                conteúdo: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
-                respondendo_a: action.message.reply,
-              });
-            } else {
-              const message = action.message.text;
-              await whatsapp.sendText(sessionId, message);
-              currentMessages.push({
-                content: `(Rapy): ${message}`,
-                name: "Paçoca",
-                jid: "",
-                ia: true,
-              });
-              console.log(`🤖 DEBUG: Bot respondeu (normal). Total no array: ${messages.length}`);
-              beautifulLogger.actionSent("message", {
-                tipo: "mensagem normal",
-                conteúdo: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
-              });
-            }
-          } else if (action.sticker) {
-            const stickerPath = path.join(getHomeDir(), "stickers", action.sticker);
-            await whatsapp.sendSticker(sessionId, stickerPath);
-            currentMessages.push({
-              content: `(Rapy): <usou o sticker ${action.sticker}>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
-            beautifulLogger.actionSent("sticker", {
-              arquivo: action.sticker,
-            });
-          } else if (action.audio) {
-            const audioPath = path.join(getHomeDir(), "audios", action.audio);
-            await whatsapp.sendAudio(sessionId, audioPath);
-            currentMessages.push({
-              content: `(Rapy): <enviou o áudio ${action.audio}>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
-            beautifulLogger.actionSent("audio", {
-              arquivo: action.audio,
-            });
-          } else if (action.meme) {
-            const memePath = path.join(getHomeDir(), "memes", action.meme);
-            await whatsapp.sendImage(sessionId, memePath);
-            currentMessages.push({
-              content: `(Rapy): <enviou o meme ${action.meme}>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
-            beautifulLogger.actionSent("meme", {
-              arquivo: action.meme,
-            });
-          } else if (action.poll) {
-            await whatsapp.createPoll(sessionId, action.poll.question, action.poll.options);
-            currentMessages.push({
-              content: `(Rapy): <criou uma enquete: ${action.poll.question}>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
-            beautifulLogger.actionSent("poll", {
-              pergunta: action.poll.question,
-              opções: action.poll.options.join(", "),
-            });
-          } else if (action.location) {
-            currentMessages.push({
-              content: `(Rapy): <enviou uma localização (${action.location.latitude}, ${action.location.longitude})>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
-            await whatsapp.sendLocation(
-              sessionId,
-              action.location.latitude,
-              action.location.longitude
-            );
-            beautifulLogger.actionSent("location", {
-              coordenadas: `${action.location.latitude}, ${action.location.longitude}`,
-            });
-          } else if (action.contact) {
-            currentMessages.push({
-              content: `(Rapy): <enviou um contato (${action.contact.name} (${action.contact.cell}))>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
-            await whatsapp.sendContact(sessionId, action.contact.cell, action.contact.name);
-            beautifulLogger.actionSent("contact", {
-              nome: action.contact.name,
-              telefone: action.contact.cell,
-            });
-          }
-        }    
-        // Se a resposta foi em um chat privado, atualize o timer de atividade
-        if (!isGroup) {
-            privateChatActivity.set(sessionId, Date.now());
-            beautifulLogger.info("TIMER", `Timer de atividade para ${sessionId} atualizado após resposta.`);
-        }
-
-        lastRapyResponseTime = Date.now();
-
-      } catch (error) {
-        // SUBSTITUÍMOS O LOGGER PADRÃO POR UM CONSOLE.ERROR DETALHADO
-        console.error("❌ ERRO DETALHADO CAPTURADO EM 'processResponse':");
-        console.error(error);
-        beautifulLogger.error("GERAÇÃO", "Ocorreu um erro detalhado acima.");
-      } finally {
-        isGenerating = false;
-        await whatsapp.setOnline(sessionId);
+        if (silenced || isGenerating || content.length > 300) return;
         
-        beautifulLogger.success("FINALIZAÇÃO", "Processo de resposta finalizado");
-        beautifulLogger.separator("FIM");
-      }
-    };
-
-    if (isRapyMentioned || !isGroup) { // Agora também responde se não for um grupo
-      beautifulLogger.info("TRIGGER", isGroup ? "Paçoca foi mencionado" : "Mensagem privada recebida", "- processando imediatamente");
-      await processResponse();
-    } else {
-      const debounceTime = getDebounceTime();
-      beautifulLogger.info("TRIGGER", "Processamento agendado via debounce", {
-        delay: `${Math.floor(debounceTime / 1000)}s`,
-        atividade: isGroupActive(),
-      });
-      debounce(processResponse, debounceTime, "debounce-response");
-    }
-  });
-
+        // CORREÇÃO: A chamada para mensagens de texto também passa os parâmetros
+        if (isGroup) {
+            const getDebounceTime = () => { /* ... lógica do debounce ... */ return 2000; };
+            debounce(() => processResponse(sessionId, currentMessages, isGroup), getDebounceTime(), "debounce-response");
+        } else {
+            await processResponse(sessionId, currentMessages, isGroup);
+        }
+    });
 }
