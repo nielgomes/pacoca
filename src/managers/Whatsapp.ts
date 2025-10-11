@@ -167,8 +167,14 @@ export default class Whatsapp {
 
           // Define um nome de arquivo único e o caminho para a pasta temp
           const fileType = content.imageMessage ? 'jpg' : 'ogg';
-          const tempFilePath = path.join(getHomeDir(), 'temp', `${msg.key.id}.${fileType}`);
-
+                  
+          // Define o novo diretório e garante que ele exista
+          const tempDir = path.join(getHomeDir(), 'whatsapp_session', 'temp');
+          await fs.promises.mkdir(tempDir, { recursive: true });
+                  
+          // Cria o caminho completo para o arquivo dentro do novo diretório
+          const tempFilePath = path.join(tempDir, `${msg.key.id}.${fileType}`);
+                  
           // Salva o buffer no arquivo
           await fs.promises.writeFile(tempFilePath, buffer);
 

@@ -16,4 +16,3 @@ services:
     # Isso evita que você tenha que escanear o QR Code toda vez que o contêiner for reiniciado
     volumes:
       - ./whatsapp_session:/usr/src/app/whatsapp_session
-      - ./temp:/usr/src/app/temp
