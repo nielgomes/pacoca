@@ -36,6 +36,31 @@ export default class Whatsapp {
   private sock: WASocket | undefined;
   private onMessage?: MessageHandler;
   private presence: WAPresence = "available";
+  // ALTERAÇÃO 1: Adicionamos uma propriedade privada para armazenar o caminho da pasta temporária.
+  private tempDirPath: string;
+
+  // ALTERAÇÃO 2: Adicionamos um construtor para a classe.
+  constructor() {
+    // Definimos o caminho correto para a pasta temp, dentro de 'whatsapp_session'.
+    this.tempDirPath = path.join(getHomeDir(), 'whatsapp_session', 'temp');
+    // Chamamos a nova função que garante que este diretório exista.
+    this.ensureTempDirExists();
+  }
+
+  // ALTERAÇÃO 3: Criamos um novo método para verificar e criar a pasta temporária.
+  private async ensureTempDirExists() {
+    try {
+      // O 'recursive: true' garante que a pasta seja criada mesmo que 'whatsapp_session' não exista.
+      // Se a pasta já existir, este comando não faz nada e não gera erro.
+      await fs.promises.mkdir(this.tempDirPath, { recursive: true });
+      console.log(`✅ Diretório temporário verificado/criado em: ${this.tempDirPath}`);
+    } catch (error) {
+      console.error("❌ Falha crítica ao criar o diretório temporário:", error);
+      // Se não conseguirmos criar a pasta, a aplicação não pode continuar salvando mídias.
+      // É importante parar o processo para evitar mais erros.
+      process.exit(1);
+    }
+  }
 
   // O método 'init' agora é chamado de 'connect' para maior clareza.
   // Ele será o responsável por iniciar e reiniciar a conexão.
@@ -100,11 +125,11 @@ export default class Whatsapp {
           const files = fs.readdirSync(sessionDir);
           for (const file of files) {
             // condição para pular o arquivo .gitkeep
-            if (file !== '.gitkeep') {
+            if (file !== '.gitkeep' && file !== 'temp') { // Adicionado 'temp' para não apagar a pasta
               fs.rmSync(path.join(sessionDir, file), { recursive: true, force: true });
             }
           }
-          console.log("Credenciais da sessão anterior limpas com sucesso, .gitkeep preservado.");
+          console.log("Credenciais da sessão anterior limpas com sucesso, .gitkeep e pasta temp preservados.");
         }
       } catch (err) {
         console.error("Falha ao limpar os arquivos da pasta de autenticação:", err);
@@ -167,7 +192,8 @@ export default class Whatsapp {
 
           // Define um nome de arquivo único e o caminho para a pasta temp
           const fileType = content.imageMessage ? 'jpg' : 'ogg';
-          const tempFilePath = path.join(getHomeDir(), 'temp', `${msg.key.id}.${fileType}`);
+          // ALTERAÇÃO 4: Usamos a propriedade da classe 'this.tempDirPath' para construir o caminho final.
+          const tempFilePath = path.join(this.tempDirPath, `${msg.key.id}.${fileType}`);
 
           // Salva o buffer no arquivo
           await fs.promises.writeFile(tempFilePath, buffer);
