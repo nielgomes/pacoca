@@ -56,6 +56,20 @@ No Json acima temos:
 - __xai__: é o modelo da Grok terceiro colocado no ranking de RP (Role Play) e mais barato que o modelo __default__. Tem um ótimo desempenho, considerando que ele é 5 vezes mais barato que o deepseek/deepseek-chat-v3-0324.
 - __exp__: é o modelo experimental deepseek/deepseek-v3.2-exp ele é mais barato que o modelo __default__, vou fazer alguns testes com ele para ver como o Paçoca se comportará.
 
+### src/utils/config.ts - Escolha de modelo
+
+Aqui é onde é escolhido o modelo para uso no `src/inteligence/generateResponse.ts` para cada um dos modos `"single"` ou `"dual"` abaixo.
+
+### config.json - como ele controla o uso dos modelos acima
+
+**Explicação:**
+
+  * `"MODE"`: Pode ser `"single"` ou `"dual"`.
+      * `"single"`: Usará apenas o `RELIABLE_MODEL` para fazer tudo em uma única chamada (o comportamento para modelo que retorne o json conforme esperado).
+      * `"dual"`: Usará o `CREATIVE_MODEL` para gerar a ideia da resposta mais criativa porem ele não lida bem com formatação de json e o `RELIABLE_MODEL` para formatá-la em JSON.
+  * `"CREATIVE_MODEL"`: A chave do modelo criativo que você quer usar (do seu `model.json`). __exp__ aponta para `deepseek experimental`.
+  * `"RELIABLE_MODEL"`: A chave do modelo confiável para gerar JSON. `"nemo"` aponta para `mistralai/mistral-nemo`.
+
 # Visualizar sumario de grupos
 
 Use o comando `/sumario` para que o bot verifique se existem sumarios de grupos salvo no db.json, se existir 1 ou mais sumários o bot infoma o nr de quais sumarios existem, com esse numero basta rodar `/sumario [nr do grupo]` que será mostrado o ultimo sumario daquele grupo.

@@ -2,22 +2,14 @@
 import { ChatCompletionMessageParam } from "openai/resources";
 import { openai } from "../services/openai";
 import { Data } from "../utils/database";
-import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
+import { CREATIVE_PROMPT, JSON_CODER_PROMPT } from "../constants/DUAL_MODEL_PROMPTS";
 import beautifulLogger from "../utils/beautifulLogger";
-import config from '../../model.json';
+import models from '../../model.json';
+import config from "../utils/config";
 import mediaCatalog from '../../media_catalog.json';
-import { Message, Action, BotResponse, GenerateResponseResult } from "./types";
+import { Message, BotResponse, GenerateResponseResult } from "./types";
+import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
 
-
-// --- Constantes Centralizadas ---
-// ATUALIZAÇÃO: Alterado para o modelo gratuito DeepSeek da OpenRouter.
-const MODEL_NAME = config.nemo.MODEL_NAME;
-const MODEL_PRICING = {
-  // Geralmente informado em USD$ por Milhão de tokens
-  // se o modelo é gratuito, então o custo é zero.
-  input: config.nemo.MODEL_PRICING.input,
-  output: config.nemo.MODEL_PRICING.output,
-};
 
 // --- Carregamento Único de Mídia ---
 const stickerOptions = mediaCatalog.stickers.map(sticker => sticker.file);
@@ -121,7 +113,7 @@ const RESPONSE_SCHEMA = {
 
 export default async function generateResponse(
   data: Data,
-  messages: Message,
+  messages: Message[],
   sessionId: string
 ): Promise<GenerateResponseResult> {
   beautifulLogger.aiGeneration("start", "Iniciando geração de resposta...");
@@ -153,75 +145,167 @@ export default async function generateResponse(
   const groupData = data[sessionId] || {};
   const contextData = formatDataForPrompt(groupData);
 
-  const inputMessages: ChatCompletionMessageParam[] = [
-    { role: "system", content: PERSONALITY_PROMPT },
-    { role: "assistant", content: `${contextData}\n\n${mediaContext}` },
-    { role: "user", content: `Conversa: \n\n${messagesMaped}` },
-  ];
-
-  const inputText = inputMessages.map((msg) => msg.content || '').join("\n");
-  const inputTokens = calculateTokens(inputText);
-
-  beautifulLogger.aiGeneration("tokens", { "tokens de entrada (estimado)": inputTokens });
-  beautifulLogger.aiGeneration("processing", "Enviando requisição para a IA...");
+  // Acessamos os nomes e valores dos modelos dinamicamente a partir do model.json
+  const modelsData = models as Record<string, { MODEL_NAME: string; MODEL_PRICING: { input: number; output: number; } }>;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: MODEL_NAME,
-      messages: inputMessages,
-      response_format: RESPONSE_SCHEMA,
-      temperature: 0.8,
-      max_tokens: 200, // Aumentei para dar mais liberdade à IA
-    }, {
-      // 2º Argumento: As opções da requisição
-      timeout: 30 * 1000, // 30 segundos
-    });
+    if (config.MODE === 'dual') {
+      beautifulLogger.aiGeneration("mode", `Executando no modo DUAL.`);
+      
+      // --- PASSO 1: CHAMADA CRIATIVA ---
+      const creativeModelConfig = modelsData[config.CREATIVE_MODEL];
+      beautifulLogger.aiGeneration("processing", `[DUAL-1] Enviando requisição para modelo criativo: ${creativeModelConfig.MODEL_NAME}`);
 
-    if (!response.choices || response.choices.length === 0 || !response.choices[0].message) {
-      throw new Error("A IA não retornou nenhuma opção de resposta (array 'choices' vazio).");
+      const creativeMessages: ChatCompletionMessageParam[] = [
+        { role: "system", content: CREATIVE_PROMPT },
+        { role: "assistant", content: `${contextData}\n\n${mediaContext}` },
+        { role: "user", content: `Conversa: \n\n${messagesMaped}` },
+      ];
+      
+      const creativeInputText = creativeMessages.map((msg) => msg.content || '').join("\n");
+      const creativeInputTokens = calculateTokens(creativeInputText);
+
+      const creativeResponse = await openai.chat.completions.create({
+        model: creativeModelConfig.MODEL_NAME,
+        messages: creativeMessages,
+        temperature: 0.8,
+        max_tokens: 200,
+      }, { timeout: 30 * 1000 });
+      
+      const creativeContent = creativeResponse.choices[0]?.message?.content;
+      if (!creativeContent) throw new Error("[DUAL-1] Modelo criativo não retornou conteúdo.");
+      
+      const creativeOutputTokens = calculateTokens(creativeContent);
+      beautifulLogger.aiGeneration("processing", `[DUAL-1] Plano de ação recebido: "${creativeContent}"`);
+
+      // --- PASSO 2: CHAMADA CODIFICADORA ---
+      const reliableModelConfig = modelsData[config.RELIABLE_MODEL];
+      beautifulLogger.aiGeneration("processing", `[DUAL-2] Enviando plano para modelo codificador: ${reliableModelConfig.MODEL_NAME}`);
+
+      const coderMessages: ChatCompletionMessageParam[] = [
+        // Usamos o PERSONALITY_PROMPT aqui para dar contexto sobre o formato JSON esperado
+        { role: "system", content: PERSONALITY_PROMPT }, 
+        { role: "user", content: `${JSON_CODER_PROMPT}\n\n"${creativeContent}"` },
+      ];
+
+      const coderInputText = coderMessages.map((msg) => msg.content || '').join("\n");
+      const coderInputTokens = calculateTokens(coderInputText);
+
+      const coderResponse = await openai.chat.completions.create({
+        model: reliableModelConfig.MODEL_NAME,
+        messages: coderMessages,
+        response_format: RESPONSE_SCHEMA,
+        temperature: 0.8,
+        max_tokens: 200,
+      }, { timeout: 30 * 1000 });
+
+      const coderContent = coderResponse.choices[0]?.message?.content;
+      if (!coderContent) throw new Error("[DUAL-2] Modelo codificador não retornou conteúdo.");
+
+      const coderOutputTokens = calculateTokens(coderContent);
+
+      // --- CÁLCULO DE CUSTO COMBINADO ---
+      const totalInputTokens = creativeInputTokens + coderInputTokens;
+      const totalOutputTokens = creativeOutputTokens + coderOutputTokens;
+      const totalTokens = totalInputTokens + totalOutputTokens;
+
+      const creativeCost = (creativeInputTokens * creativeModelConfig.MODEL_PRICING.input / 1000000) + (creativeOutputTokens * creativeModelConfig.MODEL_PRICING.output / 1000000);
+      const reliableCost = (coderInputTokens * reliableModelConfig.MODEL_PRICING.input / 1000000) + (coderOutputTokens * reliableModelConfig.MODEL_PRICING.output / 1000000);
+      const totalCost = creativeCost + reliableCost;
+      
+      beautifulLogger.aiGeneration("cost", {
+        "modo": "DUAL",
+        "modelo criativo": creativeModelConfig.MODEL_NAME,
+        "modelo codificador": reliableModelConfig.MODEL_NAME,
+        "tokens total (est.)": totalTokens,
+        "custo total (USD)": `$${totalCost.toFixed(8)}`,
+      });
+
+      const jsonMatch = coderContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch || !jsonMatch[0]) throw new Error("[DUAL-2] Nenhum bloco JSON válido foi encontrado na resposta do codificador.");
+      
+      const parsedResponse = JSON.parse(jsonMatch[0]) as { actions: BotResponse };
+      if (!Array.isArray(parsedResponse.actions)) throw new Error("O JSON extraído não contém um array de 'actions' válido.");
+
+      beautifulLogger.aiGeneration("complete", {
+        "ações processadas": parsedResponse.actions.length,
+        "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
+      });
+      
+      return { actions: parsedResponse.actions, cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens, cost: totalCost } };
+
+    } else {
+      // =========================================================================
+      // ALTERAÇÃO: MODO SINGLE - SUA LÓGICA ORIGINAL FOI MOVIDA PARA CÁ
+      // =========================================================================
+      beautifulLogger.aiGeneration("mode", `Executando no modo SINGLE.`);
+
+      const modelConfig = modelsData[config.RELIABLE_MODEL];
+      const MODEL_NAME = modelConfig.MODEL_NAME;
+      const MODEL_PRICING = modelConfig.MODEL_PRICING;
+
+      const inputMessages: ChatCompletionMessageParam[] = [
+        { role: "system", content: PERSONALITY_PROMPT },
+        { role: "assistant", content: `${contextData}\n\n${mediaContext}` },
+        { role: "user", content: `Conversa: \n\n${messagesMaped}` },
+      ];
+
+      const inputText = inputMessages.map((msg) => msg.content || '').join("\n");
+      const inputTokens = calculateTokens(inputText);
+
+      beautifulLogger.aiGeneration("tokens", { "tokens de entrada (estimado)": inputTokens });
+      beautifulLogger.aiGeneration("processing", `[SINGLE] Enviando requisição para: ${MODEL_NAME}`);
+      
+      const response = await openai.chat.completions.create({
+          model: MODEL_NAME,
+          messages: inputMessages,
+          response_format: RESPONSE_SCHEMA,
+          temperature: 0.8,
+          max_tokens: 200,
+      }, {
+          timeout: 30 * 1000,
+      });
+
+      if (!response.choices || response.choices.length === 0 || !response.choices[0].message) {
+          throw new Error("A IA não retornou nenhuma opção de resposta (array 'choices' vazio).");
+      }
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+          throw new Error("Nenhuma resposta foi gerada pela IA (conteúdo vazio).");
+      }
+
+      const outputTokens = calculateTokens(content);
+      const totalTokens = inputTokens + outputTokens;
+      const cost = (inputTokens * MODEL_PRICING.input / 1000000) + (outputTokens * MODEL_PRICING.output / 1000000);
+      const costMessage = cost === 0 ? `$${cost.toFixed(8)} (modelo gratuito)` : `$${cost.toFixed(8)}`;
+
+      beautifulLogger.aiGeneration("cost", {
+          "modelo utilizado": MODEL_NAME,
+          "tokens entrada (est.)": inputTokens,
+          "tokens saída (est.)": outputTokens,
+          "tokens total (est.)": totalTokens,
+          "custo (USD)": costMessage,
+      });
+      
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch || !jsonMatch[0]) {
+          throw new Error("Nenhum bloco JSON válido foi encontrado na resposta da IA.");
+      }
+      const jsonString = jsonMatch[0];
+      const parsedResponse = JSON.parse(jsonString) as { actions: BotResponse };
+      if (!Array.isArray(parsedResponse.actions)) {
+          throw new Error("O JSON extraído não contém um array de 'actions' válido.");
+      }
+
+      beautifulLogger.aiGeneration("complete", {
+          "ações processadas": parsedResponse.actions.length,
+          "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
+      });
+      
+      return { actions: parsedResponse.actions, cost: { inputTokens, outputTokens, totalTokens, cost } };
     }
-
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("Nenhuma resposta foi gerada pela IA (conteúdo vazio).");
-    }
-
-    const outputTokens = calculateTokens(content);
-    const totalTokens = inputTokens + outputTokens;
-    const cost = (inputTokens * MODEL_PRICING.input / 100000 / 2) + (outputTokens * MODEL_PRICING.output / 100000 / 2);
-    const costMessage = cost === 0 ? `$${cost.toFixed(8)} (modelo gratuito)` : `$${cost.toFixed(8)}`;
-
-    beautifulLogger.aiGeneration("cost", {
-      "modelo utilizado": MODEL_NAME,
-      "tokens entrada (est.)": inputTokens,
-      "tokens saída (est.)": outputTokens,
-      "tokens total (est.)": totalTokens,
-      "custo (USD)": costMessage,
-    });
-    
-    // Usamos a expressão regular para encontrar o trecho de JSON, possiveis formatações de markdown.
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch || !jsonMatch[0]) {
-      // Se não encontrarmos nenhum trecho de JSON, lançamos um erro claro.
-      throw new Error("Nenhum bloco JSON válido foi encontrado na resposta da IA.");
-    }
-
-    const jsonString = jsonMatch[0];
-    const parsedResponse = JSON.parse(jsonString) as { actions: BotResponse };
-
-    if (!Array.isArray(parsedResponse.actions)) {
-      throw new Error("O JSON extraído não contém um array de 'actions' válido.");
-    }
-
-    beautifulLogger.aiGeneration("complete", {
-      "ações processadas": parsedResponse.actions.length,
-      "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
-    });
-    
-    return { actions: parsedResponse.actions, cost: { inputTokens, outputTokens, totalTokens, cost } };
-
   } catch (error: any) {
-    // ALTERAÇÃO 2: Capturamos o erro e o logamos de forma mais detalhada
+    // ALTERAÇÃO: Este bloco de catch agora lida com erros de AMBOS os modos.
     beautifulLogger.aiGeneration("error", {
       erro: "Falha crítica na chamada da API ou na análise da resposta.",
       "mensagem de erro": error.message,
