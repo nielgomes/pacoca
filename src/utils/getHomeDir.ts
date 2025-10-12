@@ -1,16 +1,12 @@
-import path from "path";
+import path from 'path';
 
-export default function getHomeDir() {
-  const baseDir = path.resolve(__dirname, "../");
-
-  if (
-    baseDir.endsWith("/src/") ||
-    baseDir.endsWith("\\src\\") ||
-    baseDir.endsWith("/src") ||
-    baseDir.endsWith("\\src")
-  ) {
-    return path.resolve(baseDir, "../");
-  }
-
-  return baseDir;
+/**
+ * Retorna o diretório raiz do projeto de forma confiável.
+ * Usa `process.cwd()` que aponta para o diretório onde o processo Node.js foi iniciado,
+ * que é a raiz do projeto no nosso contêiner Docker.
+ * Isso evita problemas com caminhos relativos ao se executar o código compilado da pasta 'dist'.
+ * @returns O caminho absoluto para a raiz do projeto.
+ */
+export default function getHomeDir(): string {
+  return path.resolve(process.cwd());
 }
