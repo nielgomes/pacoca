@@ -14,20 +14,29 @@ import { memory } from "./MemoryManager";
  * @returns O caminho completo para o arquivo encontrado ou null se não encontrar.
  */
 async function findMediaPath(mediaDir: string, requestedFile: string): Promise<string | null> {
+    const homeDir = getHomeDir();
+    const fullDir = path.join(homeDir, mediaDir);
+
+    // PONTO DE VERIFICAÇÃO 1: Vamos ver o que 'getHomeDir()' e o caminho final se tornam.
+    console.log(`🕵️ DEBUG [MediaFinder]: getHomeDir() retornou: "${homeDir}"`);
+    console.log(`🕵️ DEBUG [MediaFinder]: Tentando ler o diretório: "${fullDir}"`);
+
     try {
-        const fullDir = path.join(getHomeDir(), mediaDir);
         const files = await fs.readdir(fullDir);
-        
         const foundFile = files.find(file => file.toLowerCase() === requestedFile.toLowerCase());
 
         if (foundFile) {
-            return path.join(fullDir, foundFile);
+            const finalPath = path.join(fullDir, foundFile);
+            console.log(`🕵️ DEBUG [MediaFinder]: Arquivo encontrado em: "${finalPath}"`);
+            return finalPath;
         }
 
         beautifulLogger.warn("MediaFinder", `Arquivo "${requestedFile}" não encontrado no diretório "${mediaDir}".`);
         return null;
     } catch (error) {
-        beautifulLogger.error("MediaFinder", `Erro ao ler o diretório "${mediaDir}".`, error);
+        // PONTO DE VERIFICAÇÃO 2: Se 'readdir' falhar, este log nos dará o erro completo.
+        console.error(`🕵️ DEBUG [MediaFinder]: ERRO DETALHADO ao tentar ler "${fullDir}":`, error);
+        beautifulLogger.error("MediaFinder", `Erro ao ler o diretório "${mediaDir}".`, {});
         return null;
     }
 }
