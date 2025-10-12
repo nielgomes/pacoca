@@ -8,15 +8,14 @@ import generateSearchResponse from "../inteligence/generateSearchResponse";
 import database from "../utils/database";
 import getHomeDir from "../utils/getHomeDir";
 import DEFAULT_MESSAGES from "../constants/DEFAULT_MESSAGES";
+import { memory } from "./MemoryManager";
 
 // Define um "pacote" de contexto que os comandos precisam para funcionar
 type CommandContext = {
     whatsapp: Whatsapp;
     sessionId: string;
-    currentMessages: Message[];
-    privateMessages: Map<string, Message[]>;
-    pendingFirstReply: Set<string>;
-    privateChatActivity: Map<string, number>;
+    currentMessages: Message[]; // Ainda útil para comandos que possam ler o chat atual
+    memory: typeof memory; // Recebe a instância completa do MemoryManager
 };
 
 type CommandResult = {
@@ -61,7 +60,7 @@ export async function handleCommand(content: string, context: CommandContext): P
 // LÓGICA DETALHADA DE CADA COMANDO
 // =========================================================================
 
-async function handleCallCommand(content: string, { whatsapp, sessionId, privateMessages, pendingFirstReply, privateChatActivity }: CommandContext) {
+async function handleCallCommand(content: string, { whatsapp, sessionId, memory }: CommandContext) {
     const match = content.match(/^\/call\s+((?:[+()0-9-\s])+)\s+(.*)$/);
 
     if (!match) {
@@ -98,14 +97,13 @@ async function handleCallCommand(content: string, { whatsapp, sessionId, private
         
         await whatsapp.sendText(targetJid, finalMessage);
 
-        const privateHistory = privateMessages.get(targetJid) || [];
+        const privateHistory = memory.getMessages(targetJid, false);
         privateHistory.push({ content: `(Paçoca): ${finalMessage}`, name: "Paçoca", jid: "", ia: true });
-        privateMessages.set(targetJid, privateHistory);
 
-        pendingFirstReply.add(targetJid);
+        memory.addPendingFirstReply(targetJid);
         beautifulLogger.info("TIMER", `Conversa com ${targetJid} marcada como pendente de primeira resposta.`);
-        privateChatActivity.set(targetJid, Date.now());
-
+        memory.setPrivateChatActivity(targetJid, Date.now());
+        
         await whatsapp.sendText(sessionId, `Ok, conversa iniciada com ${targetNumber}.`);
     } catch (error) {
         beautifulLogger.error("COMANDO /call", "O agente 'Puxa-Assunto' falhou", error);
