@@ -3,17 +3,13 @@ import generateResponse, { Message } from "./inteligence/generateResponse";
 import Whatsapp from "./managers/Whatsapp";
 import database from "./utils/database";
 import debounce from "./utils/debounce";
-import generateSummary from "./inteligence/generateSummary";
 import getHomeDir from "./utils/getHomeDir";
-import log from "./utils/log";
 import isPossibleResponse from "./inteligence/isPossibleResponse";
 import beautifulLogger from "./utils/beautifulLogger";
-import silenceRapy from "./inteligence/silenceRapy";
-import generateSearchResponse from './inteligence/generateSearchResponse';
-import generateConversationStarter from './inteligence/generateConversationStarter';
 import fs from "fs/promises"; 
 import analyzeAudio from "./inteligence/analyzeAudio"; 
 import analyzeImage from "./inteligence/analyzeImage";
+import { handleCommand } from "./managers/CommandManager";
 
 
 let messages: Message[] = [];
@@ -27,48 +23,6 @@ const PENDING_REPLY_TIMEOUT = 24 * 60 * 60 * 1000; // 24 horas
 const pendingFirstReply = new Set<string>(); // "Memória" para quem estamos esperando a primeira resposta
 
 
-/**
- * Valida e formata um número de telefone brasileiro para o formato JID do WhatsApp.
- * Trata o 9º dígito, código de país, espaços e caracteres especiais.
- * @param number O número de telefone informado pelo usuário.
- * @returns Um objeto indicando sucesso com o JID, ou falha com uma mensagem de erro.
- */
-function normalizeAndValidateJid(number: string): { success: true; jid: string } | { success: false; error: string } {
-  // Caso 3 e 4: Remove todos os caracteres não numéricos (+, -, espaços, etc.)
-  const cleanNumber = number.replace(/\D/g, "");
-
-  // Caso 1: Validação de tamanho mínimo (DDD de 2 dígitos + número de 8 dígitos = 10)
-  if (cleanNumber.length < 10) {
-    return { 
-      success: false, 
-      error: `O número "${number}" parece curto demais. Ele deve ter pelo menos 10 dígitos (DDD + número).` 
-    };
-  }
-
-  // Adiciona o código do Brasil (55) se ele estiver faltando
-  let fullNumber = cleanNumber;
-  if (!cleanNumber.startsWith('55')) {
-    fullNumber = '55' + cleanNumber;
-  }
-  
-  // Caso 2: Remove o '9' extra se for um celular de 13 dígitos (55 + DDD + 9 + 8 dígitos)
-  if (fullNumber.length === 13 && fullNumber.charAt(4) === '9') {
-    const finalNumber = fullNumber.substring(0, 4) + fullNumber.substring(5);
-    beautifulLogger.info("NORMALIZAÇÃO", `Número ${fullNumber} corrigido para ${finalNumber}`);
-    return { success: true, jid: `${finalNumber}@s.whatsapp.net` };
-  }
-
-  // Se o número tiver 12 dígitos (55 + DDD + 8 dígitos), ele já está no formato correto
-  if (fullNumber.length === 12) {
-    return { success: true, jid: `${fullNumber}@s.whatsapp.net` };
-  }
-
-  // Se, após todas as tentativas, o formato ainda for inválido
-  return { 
-    success: false, 
-    error: `O número "${number}" não parece ser um celular ou fixo brasileiro válido. Verifique o DDD e o número.` 
-  };
-}
 
 export default async function rapy(whatsapp: Whatsapp) {
   const db = database();
@@ -280,8 +234,11 @@ export default async function rapy(whatsapp: Whatsapp) {
 
     whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPath) => {
         const isGroup = sessionId.endsWith('@g.us');
+        const senderName = isGroup ? senderInfo?.name || "Desconhecido" : msg.pushName || "Desconhecido";
+        const senderJid = isGroup ? senderInfo!.jid : sessionId;
         // A variável `currentMessages` agora é a fonte da verdade para esta interação.
         const currentMessages = isGroup ? messages : (privateMessages.get(sessionId) || []);
+        
         if (!isGroup && currentMessages.length === 0) { // Garante que o array exista para conversas privadas
             privateMessages.set(sessionId, currentMessages);
         }
@@ -290,9 +247,6 @@ export default async function rapy(whatsapp: Whatsapp) {
             if (!mediaPath) return;
 
             await whatsapp.setTyping(sessionId);
-
-            const senderJid = senderInfo?.jid || sessionId;
-            const senderName = senderInfo?.name || "Desconhecido";
             
             let analysisResult = "";
             if (type === "audio") {
@@ -312,7 +266,7 @@ export default async function rapy(whatsapp: Whatsapp) {
 
             const contextMessage: Message[0] = {
               // A mensagem agora é uma observação interna do Paçoca
-              content: `(Paçoca pensou sobre a ${type} que recebeu: "${analysisResult}")`,
+              content: `(Paçoca pensou sobre a ${type} que recebeu de ${senderName}: "${analysisResult}")`,
               // O autor da "mensagem" é o próprio Paçoca
               name: "Paçoca",
               // Não está associado a nenhum usuário específico
@@ -328,194 +282,64 @@ export default async function rapy(whatsapp: Whatsapp) {
         }
 
 
-    if (type !== "text") return;
+      if (type !== "text") return;
       const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
-      // --- INÍCIO DO CÓDIGO DO COMANDO /call ---
-      if (content?.toLowerCase().startsWith("/call")) {
-        // Usamos uma expressão regular para extrair o número e o contexto
-        const match = content.match(/^\/call\s+((?:[+()0-9-\s])+)\s+(.*)$/);
-    
-      if (!match) {
-        await whatsapp.sendText(sessionId, "Formato inválido. Use: /call [numero] [contexto]");
-        return;
-      }
-    
-      const targetNumber = match[1];
-      const context = match[2];
-      // Chamamos nossa nova função validadora
-      const validationResult = normalizeAndValidateJid(targetNumber);
-      // Se a validação falhar, enviamos o erro para o usuário e paramos
-      if (!validationResult.success) {
-        await whatsapp.sendText(sessionId, validationResult.error);
-        beautifulLogger.warn("COMANDO /call", "Validação do número falhou.", { erro: validationResult.error });
-        return;
-      }
+      if (!content) return;
 
-      // Se a validação for bem-sucedida, usamos o JID retornado
-      const targetJid = validationResult.jid;
-    
-      beautifulLogger.info("COMANDO /call", `Iniciando conversa com ${targetJid} sobre: "${context}"`);
-    
-      try {
-        // 1. Verificamos se o número existe no WhatsApp.
-        const [exists] = await whatsapp.sock!.onWhatsApp(targetJid);
-        if (!exists || !exists.exists) {
-            await whatsapp.sendText(sessionId, `O número ${targetNumber} não foi encontrado no WhatsApp.`);
-            beautifulLogger.error("COMANDO /call", "Número de destino não existe no WhatsApp.", { targetJid });
-            return;
-        }
+      // =========================================================================
+      // PONTO CENTRAL DA REFATORAÇÃO: Delega para o CommandManager /call /pesquisa /sumario
+      // /silencio /liberado
+      // =========================================================================
+      const commandResult = await handleCommand(content, { 
+          whatsapp, 
+          sessionId, 
+          currentMessages, // Passa o histórico da conversa atual
+          privateMessages, 
+          pendingFirstReply, 
+          privateChatActivity 
+      });
 
-        // 2. "Aquecemos" a conversa enviando uma presença e status de "digitando".
-        beautifulLogger.info("COMANDO /call", `Iniciando handshake de presença para ${targetJid}`);
-        await whatsapp.setOnline(targetJid);
-        await whatsapp.setTyping(targetJid);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Pequena pausa para simular digitação
-      
-        // 3. Gera a mensagem de abertura (agora corrigida para ser texto puro ou json)
-        const rawMessage = await generateConversationStarter(context);
-        let finalMessage = rawMessage; // Por padrão, usamos a resposta bruta
-
-        // 4. Verificamos se a IA "desobedeceu" e mandou um JSON
-        if (rawMessage.trim().startsWith('{"actions":')) {
-          beautifulLogger.warn("PARSER", "IA do 'Puxa-Assunto' retornou JSON. Extraindo texto...");
-          try {
-            const parsed = JSON.parse(rawMessage);
-            // Encontra a primeira ação de mensagem e pega o texto dela
-            const messageAction = parsed.actions.find(a => a.type === 'message' && a.message?.text);
-            if (messageAction) {
-              finalMessage = messageAction.message.text;
-            }
-          } catch (e) {
-            beautifulLogger.error("PARSER", "Falha ao extrair JSON da resposta do 'Puxa-Assunto', usando texto bruto como fallback.", e);
-            // Se o parse falhar, por segurança, usamos a resposta bruta mesmo.
-            finalMessage = rawMessage;
+      if (commandResult.commandHandled) {
+          // Se o comando alterou o estado 'silenced', atualizamos a variável principal.
+          if (typeof commandResult.newSilencedState === 'boolean') {
+              silenced = commandResult.newSilencedState;
+              beautifulLogger.info("ESTADO", `Estado de silêncio alterado para: ${silenced}`);
           }
-        }        
-
-        // 5. Envia a mensagem final (limpa) para o alvo
-        await whatsapp.sendText(targetJid, finalMessage);
-      
-        // 6. Salva a mensagem final (limpa) na memória do alvo
-        const privateHistory = privateMessages.get(targetJid) || [];
-        privateHistory.push({
-          content: `(Paçoca): ${finalMessage}`,
-          name: "Paçoca",
-          jid: "",
-          ia: true,
-        });
-        privateMessages.set(targetJid, privateHistory);
-      
-        // Marcamos este usuário como "aguardando a primeira resposta"
-        pendingFirstReply.add(targetJid);
-        beautifulLogger.info("TIMER", `Conversa com ${targetJid} marcada como pendente de primeira resposta.`);
-        
-        // 7. Inicia o timer de 5 minutos para a conversa
-        privateChatActivity.set(targetJid, Date.now());
-      
-        // 8. Confirma a operação para você
-        await whatsapp.sendText(sessionId, `Ok, conversa iniciada com ${targetNumber}.`);
-      
-      } catch (error) {
-        beautifulLogger.error("COMANDO /call", "O agente 'Puxa-Assunto' falhou", error);
-        await whatsapp.sendText(sessionId, "Desculpe, não consegui gerar a mensagem de abertura.");
+          return; // O fluxo para aqui, pois o comando foi executado.
       }
-    
-      return; // Encerra o fluxo para não processar o comando como uma mensagem normal
-    }
-    // --- FIM DO CÓDIGO DO COMANDO /call ---
-    
-    // --- INÍCIO DO NOVO CÓDIGO DO COMANDO VER SUMARIOS ---
-    if (content?.toLowerCase().startsWith("/sumario")) {
-      beautifulLogger.info("COMANDO", "Comando '/sumario' recebido.");
-      const allData = db.getAll();
-      // Filtramos o banco de dados para pegar apenas as chaves que são de grupos
-      const groupSummaries = Object.keys(allData).filter(key => key.endsWith('@g.us'));
-    
-      if (groupSummaries.length === 0) {
-        await whatsapp.sendText(sessionId, "Ainda não tenho nenhum sumário de grupo em memória.");
-        return; // Encerra o processamento
-      }
-    
-      const parts = content.split(" ");
-      // Caso o usuário queira ver um sumário específico (ex: /sumario 1)
-      if (parts.length > 1 && !isNaN(parseInt(parts[1]))) {
-        const index = parseInt(parts[1]) - 1;
-        if (index >= 0 && index < groupSummaries.length) {
-          const targetGroupId = groupSummaries[index];
-          const summaryData = allData[targetGroupId];
+      // =========================================================================
 
-          let responseText = `📋 *Sumário do Grupo ${index + 1}*\n\n`;
-          responseText += `*Resumo:* ${summaryData.summary}\n\n`;
-          responseText += "*Opiniões Formadas:*\n";
-          summaryData.opinions.forEach(op => {
-            responseText += `  - *${op.name}:* Nível ${op.opinion}/100 (${op.traits.join(', ')})\n`;
+      // A lógica reativa (não-comando) de 'silenceRapy' agora vive aqui.
+      if (silenced && content.toLowerCase().includes("paçoca")) {
+          beautifulLogger.info("ESTADO", "Usuário tentou falar com o Paçoca enquanto silenciado.");
+          const messageId = msg.key.id;
+          if (messageId) {
+              await whatsapp.sendTextReply(sessionId, messageId, DEFAULT_MESSAGES.TRYING_TO_SPEAK);
+          } else {
+              await whatsapp.sendText(sessionId, DEFAULT_MESSAGES.TRYING_TO_SPEAK);
+          }
+          currentMessages.push({
+              content: `(Paçoca): ${DEFAULT_MESSAGES.TRYING_TO_SPEAK}`,
+              name: "Paçoca", jid: "", ia: true,
           });
-          await whatsapp.sendText(sessionId, responseText);
-        
-        } else {
-          await whatsapp.sendText(sessionId, "Número de sumário inválido. Verifique a lista e tente novamente.");
-        }
+          return; // Para o fluxo, pois esta é a única resposta permitida.
+      }
+      // =========================================================================
+      currentMessages.push({
+          content: `(${senderName}{userid: ${senderJid}}): ${content}`,
+          name: senderName,
+          jid: senderJid,
+          ia: false,
+      });
+
+      if (silenced || isGenerating || content.length > 300) return;
+
+      // CORREÇÃO: A chamada para mensagens de texto também passa os parâmetros
+      if (isGroup) {
+          const getDebounceTime = () => { /* ... lógica do debounce ... */ return 2000; };
+          debounce(() => processResponse(sessionId, currentMessages, isGroup), getDebounceTime(), "debounce-response");
       } else {
-        // Caso o usuário só digite /sumario, listamos os disponíveis
-        let responseText = "Encontrei sumários para os seguintes grupos:\n\n";
-      
-        // Usamos um loop for...of para poder usar 'await' e buscar cada nome
-        let index = 0;
-        for (const groupId of groupSummaries) {
-          // Usamos nossa nova função para buscar o nome do grupo!
-          const groupName = await whatsapp.getGroupName(groupId);
-          responseText += `${index + 1}. ${groupName}\n`;
-          index++;
-        }
-      
-        responseText += "\nPara ver um sumário específico, use o comando `/sumario [número]`.";
-        await whatsapp.sendText(sessionId, responseText);
+          await processResponse(sessionId, currentMessages, isGroup);
       }
-      return; // Encerra o processamento para não tratar como uma mensagem normal
-    }
-    // --- FIM DO NOVO CÓDIGO DO COMANDO VER SUMARIOS---
-
-    // --- INÍCIO DO GATILHO DO NOVO AGENTE DE PESQUISA ONLINE ---
-    const searchTrigger = "/pesquisa ";
-    if (content?.toLowerCase().startsWith(searchTrigger)) {
-      const query = content.substring(searchTrigger.length);
-      beautifulLogger.info("ORQUESTRADOR", `Agente de Pesquisa ativado com a query: "${query}"`);
-
-      try {
-        // Avisa ao usuário que está pesquisando (melhora a experiência)
-        await whatsapp.sendText(sessionId, "🔎 Certo, pesquisando na internet sobre isso...");
-
-        const searchResult = await generateSearchResponse(query);
-        await whatsapp.sendText(sessionId, searchResult);
-      } catch (error) {
-        beautifulLogger.error("AGENTE PESQUISADOR", "O agente falhou", error);
-        await whatsapp.sendText(sessionId, "Desculpe, não consegui concluir a pesquisa. Tente novamente mais tarde.");
-      }
-
-      return; // Encerra o fluxo aqui, não precisa da IA conversacional normal.
-    }
-    // --- FIM DO GATILHO DO NOVO AGENTE DE PESQUISA ONLINE ---
-
-        if (!content) return;
-
-        const senderJid = isGroup ? senderInfo!.jid : sessionId;
-        const senderName = isGroup ? senderInfo!.name : msg.pushName || "Desconhecido";
-
-        currentMessages.push({
-            content: `(${senderName}{userid: ${senderJid}}): ${content}`,
-            name: senderName,
-            jid: senderJid,
-            ia: false,
-        });
-
-        if (silenced || isGenerating || content.length > 300) return;
-        
-        // CORREÇÃO: A chamada para mensagens de texto também passa os parâmetros
-        if (isGroup) {
-            const getDebounceTime = () => { /* ... lógica do debounce ... */ return 2000; };
-            debounce(() => processResponse(sessionId, currentMessages, isGroup), getDebounceTime(), "debounce-response");
-        } else {
-            await processResponse(sessionId, currentMessages, isGroup);
-        }
-    });
+  });
 }
