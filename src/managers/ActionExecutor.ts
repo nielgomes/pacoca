@@ -1,4 +1,5 @@
 import path from "path";
+import fs from "fs/promises"; 
 import { BotResponse, Message } from "../inteligence/generateResponse";
 import getHomeDir from "../utils/getHomeDir";
 import Whatsapp from "./Whatsapp";
