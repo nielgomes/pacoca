@@ -5,6 +5,34 @@ import Whatsapp from "./Whatsapp";
 import beautifulLogger from "../utils/beautifulLogger";
 import { memory } from "./MemoryManager";
 
+
+// função auxiliar para encontrar mídias de forma case-insensitive.
+/**
+ * Procura um arquivo de mídia em um diretório, ignorando maiúsculas/minúsculas.
+ * @param mediaDir O diretório onde procurar (ex: "stickers", "audios").
+ * @param requestedFile O nome do arquivo solicitado pela IA.
+ * @returns O caminho completo para o arquivo encontrado ou null se não encontrar.
+ */
+async function findMediaPath(mediaDir: string, requestedFile: string): Promise<string | null> {
+    try {
+        const fullDir = path.join(getHomeDir(), mediaDir);
+        const files = await fs.readdir(fullDir);
+        
+        const foundFile = files.find(file => file.toLowerCase() === requestedFile.toLowerCase());
+
+        if (foundFile) {
+            return path.join(fullDir, foundFile);
+        }
+
+        beautifulLogger.warn("MediaFinder", `Arquivo "${requestedFile}" não encontrado no diretório "${mediaDir}".`);
+        return null;
+    } catch (error) {
+        beautifulLogger.error("MediaFinder", `Erro ao ler o diretório "${mediaDir}".`, error);
+        return null;
+    }
+}
+
+
 type ActionContext = {
     whatsapp: Whatsapp;
     sessionId: string;
@@ -34,21 +62,26 @@ export async function executeActions(response: BotResponse, context: ActionConte
                 beautifulLogger.actionSent("message", { tipo: "mensagem normal", conteúdo: message.substring(0, 50) });
             }
         } else if (action.sticker) {
-            console.log("🕵️ DEBUG: Entrou no bloco if (action.sticker)");
-            const stickerPath = path.join(getHomeDir(), "stickers", action.sticker);
-            await whatsapp.sendSticker(sessionId, stickerPath);
-            currentMessages.push({ content: `(Paçoca): <usou o sticker ${action.sticker}>`, name: "Paçoca", jid: "", ia: true });
-            beautifulLogger.actionSent("sticker", { arquivo: action.sticker });
+            const stickerPath = await findMediaPath("stickers", action.sticker);
+            if (stickerPath) {
+                await whatsapp.sendSticker(sessionId, stickerPath);
+                currentMessages.push({ content: `(Paçoca): <usou o sticker ${action.sticker}>`, name: "Paçoca", jid: "", ia: true });
+                beautifulLogger.actionSent("sticker", { arquivo: action.sticker });
+            }
         } else if (action.audio) {
-            const audioPath = path.join(getHomeDir(), "audios", action.audio);
-            await whatsapp.sendAudio(sessionId, audioPath);
-            currentMessages.push({ content: `(Paçoca): <enviou o áudio ${action.audio}>`, name: "Paçoca", jid: "", ia: true });
-            beautifulLogger.actionSent("audio", { arquivo: action.audio });
+            const audioPath = await findMediaPath("audios", action.audio);
+            if (audioPath) {
+                await whatsapp.sendAudio(sessionId, audioPath);
+                currentMessages.push({ content: `(Paçoca): <enviou o áudio ${action.audio}>`, name: "Paçoca", jid: "", ia: true });
+                beautifulLogger.actionSent("audio", { arquivo: action.audio });
+            }
         } else if (action.meme) {
-            const memePath = path.join(getHomeDir(), "memes", action.meme);
-            await whatsapp.sendImage(sessionId, memePath);
-            currentMessages.push({ content: `(Paçoca): <enviou o meme ${action.meme}>`, name: "Paçoca", jid: "", ia: true });
-            beautifulLogger.actionSent("meme", { arquivo: action.meme });
+            const memePath = await findMediaPath("memes", action.meme);
+            if (memePath) {
+                await whatsapp.sendImage(sessionId, memePath);
+                currentMessages.push({ content: `(Paçoca): <enviou o meme ${action.meme}>`, name: "Paçoca", jid: "", ia: true });
+                beautifulLogger.actionSent("meme", { arquivo: action.meme });
+            }
         } else if (action.poll) {
             // Lógica para criar uma enquete
             await whatsapp.createPoll(sessionId, action.poll.question, action.poll.options);
