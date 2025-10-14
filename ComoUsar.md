@@ -1,6 +1,6 @@
 # Como gerenciar qual o modelo vc vai utilizar com o Paçoca?
 
-### 1- Criar um arquivo .env:
+### 1- Criar um arquivo .env:.
 
 Criar um arquivo .env contendo:
 ```
