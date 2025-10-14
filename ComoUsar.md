@@ -60,6 +60,13 @@ No Json acima temos:
 
 Aqui é onde é escolhido o modelo para uso no `src/inteligence/generateResponse.ts` para cada um dos modos `"single"` ou `"dual"` abaixo.
 
+## Modo container first
+
+Comando para instalação de aplicações em modo container first:
+
+`docker run --rm -v "$(pwd):/usr/src/app" -w /usr/src/app node:20 npm install nome do app`
+
+
 ### config.json - como ele controla o uso dos modelos acima
 
 **Explicação:**

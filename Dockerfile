@@ -7,6 +7,8 @@ WORKDIR /usr/src/app
 # Copia os arquivos de definição de dependências
 COPY package*.json ./
 
+RUN apt-get update && apt-get install -y git
+
 # Instala TODAS as dependências (dev e produção)
 RUN npm install
 
