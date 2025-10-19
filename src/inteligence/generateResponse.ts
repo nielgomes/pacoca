@@ -219,7 +219,7 @@ export default async function generateResponse(
       if (!coderContent) throw new Error("[DUAL-2] Modelo codificador não retornou conteúdo.");
 
       const coderOutputTokens = calculateTokens(coderContent);
-
+      
       // --- CÁLCULO DE CUSTO COMBINADO ---
       const totalInputTokens = creativeInputTokens + coderInputTokens;
       const totalOutputTokens = creativeOutputTokens + coderOutputTokens;
@@ -229,6 +229,9 @@ export default async function generateResponse(
       const reliableCost = (coderInputTokens * reliableModelConfig.MODEL_PRICING.input / 1000000) + (coderOutputTokens * reliableModelConfig.MODEL_PRICING.output / 1000000);
       const totalCost = creativeCost + reliableCost;
       
+      // Criamos o objeto de custo ANTES para que possamos retorná-lo mesmo em caso de falha
+      const costResult = { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens, cost: totalCost };
+      
       beautifulLogger.aiGeneration("cost", {
         "modo": "DUAL",
         "modelo criativo": creativeModelConfig.MODEL_NAME,
@@ -237,18 +240,39 @@ export default async function generateResponse(
         "custo total (USD)": `$${totalCost.toFixed(8)}`,
       });
 
+      // --- VALIDAÇÃO E PARSE DO JSON ---
       const jsonMatch = coderContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch || !jsonMatch[0]) throw new Error("[DUAL-2] Nenhum bloco JSON válido foi encontrado na resposta do codificador.");
-      
-      const parsedResponse = JSON.parse(jsonMatch[0]) as { actions: BotResponse };
-      if (!Array.isArray(parsedResponse.actions)) throw new Error("O JSON extraído não contém um array de 'actions' válido.");
+      if (!jsonMatch || !jsonMatch[0]) {
+          beautifulLogger.error("JSON_PARSE", "[DUAL-2] Nenhum bloco JSON foi retornado pelo codificador.", { resposta: coderContent });
+          // Retornamos uma ação vazia, mas com o custo correto
+          return { actions: [], cost: costResult };
+      }
+
+      // ALTERAÇÃO: Adicionamos um try...catch específico para o JSON.parse
+      let parsedResponse: { actions: BotResponse };
+      try {
+          parsedResponse = JSON.parse(jsonMatch[0]) as { actions: BotResponse };
+      } catch (parseError: any) {
+          // Se o JSON.parse falhar (como no seu log), nós capturamos o erro
+          beautifulLogger.error("JSON_PARSE", "[DUAL-2] Falha ao parsear o JSON do codificador. SyntaxError.", {
+              "erro": parseError.message,
+              "json_quebrado": jsonMatch[0] // Logamos o JSON quebrado para debug
+          });
+          // Retornamos uma ação vazia para não quebrar o bot
+          return { actions: [], cost: costResult };
+      }
+
+      if (!parsedResponse || !Array.isArray(parsedResponse.actions)) {
+          beautifulLogger.error("JSON_PARSE", "[DUAL-2] O JSON parseado não contém um array 'actions' válido.", { json_parseado: parsedResponse });
+          return { actions: [], cost: costResult };
+      }
 
       beautifulLogger.aiGeneration("complete", {
         "ações processadas": parsedResponse.actions.length,
         "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
       });
       
-      return { actions: parsedResponse.actions, cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens, cost: totalCost } };
+      return { actions: parsedResponse.actions, cost: costResult };
 
     } else {
       // =========================================================================
@@ -301,16 +325,33 @@ export default async function generateResponse(
           "tokens saída (est.)": outputTokens,
           "tokens total (est.)": totalTokens,
           "custo (USD)": costMessage,
-      });
+});
       
+      // Criamos o objeto de custo ANTES para que possamos retorná-lo mesmo em caso de falha
+      const costResult = { inputTokens, outputTokens, totalTokens, cost };
+
+      // --- VALIDAÇÃO E PARSE DO JSON ---
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch || !jsonMatch[0]) {
-          throw new Error("Nenhum bloco JSON válido foi encontrado na resposta da IA.");
+          beautifulLogger.error("JSON_PARSE", "[SINGLE] Nenhum bloco JSON foi retornado pelo codificador.", { resposta: content });
+          return { actions: [], cost: costResult };
       }
-      const jsonString = jsonMatch[0];
-      const parsedResponse = JSON.parse(jsonString) as { actions: BotResponse };
-      if (!Array.isArray(parsedResponse.actions)) {
-          throw new Error("O JSON extraído não contém um array de 'actions' válido.");
+
+      // ALTERAÇÃO: Adicionamos um try...catch específico para o JSON.parse
+      let parsedResponse: { actions: BotResponse };
+      try {
+          parsedResponse = JSON.parse(jsonMatch[0]) as { actions: BotResponse };
+      } catch (parseError: any) {
+          beautifulLogger.error("JSON_PARSE", "[SINGLE] Falha ao parsear o JSON do codificador. SyntaxError.", {
+              "erro": parseError.message,
+              "json_quebrado": jsonMatch[0] 
+          });
+          return { actions: [], cost: costResult };
+      }
+
+      if (!parsedResponse || !Array.isArray(parsedResponse.actions)) {
+          beautifulLogger.error("JSON_PARSE", "[SINGLE] O JSON parseado não contém um array 'actions' válido.", { json_parseado: parsedResponse });
+          return { actions: [], cost: costResult };
       }
 
       beautifulLogger.aiGeneration("complete", {
@@ -318,7 +359,7 @@ export default async function generateResponse(
           "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
       });
       
-      return { actions: parsedResponse.actions, cost: { inputTokens, outputTokens, totalTokens, cost } };
+      return { actions: parsedResponse.actions, cost: costResult };
     }
   } catch (error: any) {
     // ALTERAÇÃO: Este bloco de catch agora lida com erros de AMBOS os modos.
