@@ -178,14 +178,30 @@ export default async function generateResponse(
       const creativeOutputTokens = calculateTokens(creativeContent);
       beautifulLogger.aiGeneration("processing", `[DUAL-1] Plano de ação recebido: "${creativeContent}"`);
 
+      // =========================================================================
+      // Limpeza da resposta do modelo criativo antes de enviar ao codificador.
+      // Isso remove qualquer texto extra (como "Plano:") que a IA possa ter adicionado.
+      // =========================================================================
+      let cleanedContent = creativeContent;
+      const planKeyword = "plano:";
+      const lastPlanIndex = cleanedContent.toLowerCase().lastIndexOf(planKeyword);
+
+      if (lastPlanIndex !== -1) {
+          // Pega tudo que vem DEPOIS da última ocorrência de "plano:"
+          cleanedContent = cleanedContent.substring(lastPlanIndex + planKeyword.length).trim();
+          beautifulLogger.aiGeneration("processing", `[DUAL-1.5] Resposta "suja" detectada. Limpando para: "${cleanedContent}"`);
+      }
+      // =========================================================================
+
       // --- PASSO 2: CHAMADA CODIFICADORA ---
       const reliableModelConfig = modelsData[config.RELIABLE_MODEL];
       beautifulLogger.aiGeneration("processing", `[DUAL-2] Enviando plano para modelo codificador: ${reliableModelConfig.MODEL_NAME}`);
 
-      const coderMessages: ChatCompletionMessageParam[] = [
-        // Usamos o PERSONALITY_PROMPT aqui para dar contexto sobre o formato JSON esperado
+const coderMessages: ChatCompletionMessageParam[] = [
+        // PERSONALITY_PROMPT aqui para dar contexto sobre o formato JSON esperado
         { role: "system", content: PERSONALITY_PROMPT }, 
-        { role: "user", content: `${JSON_CODER_PROMPT}\n\n"${creativeContent}"` },
+        // Usar o conteúdo limpo
+        { role: "user", content: `${JSON_CODER_PROMPT}\n\n"${cleanedContent}"` },
       ];
 
       const coderInputText = coderMessages.map((msg) => msg.content || '').join("\n");

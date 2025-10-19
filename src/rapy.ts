@@ -162,6 +162,16 @@ export default async function rapy(whatsapp: Whatsapp) {
       }
       // =========================================================================
 
+      // =========================================================================
+      // Lógica para lidar com a primeira resposta de um /call
+      // =========================================================================
+      if (!isGroup && memory.isPendingFirstReply(sessionId)) {
+        beautifulLogger.info("TIMER", `Primeira resposta recebida de ${sessionId}. Removendo flag 'pendingFirstReply'.`);
+        memory.removePendingFirstReply(sessionId);
+        // A conversa agora flui normalmente para a lógica de resposta abaixo.
+      }
+      // =========================================================================
+
       // A lógica reativa (não-comando) de 'silenceRapy' agora vive aqui.
       if (memory.isSilenced() && content.toLowerCase().includes("paçoca")) {
           beautifulLogger.info("ESTADO", "Usuário tentou falar com o Paçoca enquanto silenciado.");
