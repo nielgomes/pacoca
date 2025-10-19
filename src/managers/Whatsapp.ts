@@ -68,7 +68,7 @@ export default class Whatsapp {
     const { state, saveCreds } = await useMultiFileAuthState("whatsapp_session");
 
     this.sock = makeWASocket({
-      browser: ["Paçoca", "Chrome", "123.0.0.0"],
+      //browser: ["Paçoca", "Chrome", "123.0.0.0"],
       auth: state,
       markOnlineOnConnect: false,
       logger: LoggerConfig.forBaileys(
