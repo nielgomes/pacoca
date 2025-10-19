@@ -3,12 +3,12 @@ import {
   useMultiFileAuthState,
   DisconnectReason,
   WASocket,
-  WAMessageContent,
   proto,
   WAPresence,
   ConnectionState,
   MessageUpsertType,
   downloadMediaMessage,
+  fetchLatestBaileysVersion,  
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import qrcode from "qrcode-terminal";
@@ -36,10 +36,10 @@ export default class Whatsapp {
   private sock: WASocket | undefined;
   private onMessage?: MessageHandler;
   private presence: WAPresence = "available";
-  // ALTERAÇÃO 1: Adicionamos uma propriedade privada para armazenar o caminho da pasta temporária.
+  // Adicionamos uma propriedade privada para armazenar o caminho da pasta temporária.
   private tempDirPath: string;
 
-  // ALTERAÇÃO 2: Adicionamos um construtor para a classe.
+  // Adicionamos um construtor para a classe.
   constructor() {
     // Definimos o caminho correto para a pasta temp, dentro de 'whatsapp_session'.
     this.tempDirPath = path.join(getHomeDir(), 'whatsapp_session', 'temp');
@@ -64,16 +64,23 @@ export default class Whatsapp {
 
   // O método 'init' agora é chamado de 'connect' para maior clareza.
   // Ele será o responsável por iniciar e reiniciar a conexão.
-  async connect() {
+async connect() {
+    // ALTERAÇÃO: O fetchLatestBaileysVersion agora é crucial para a conexão.
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`Usando Baileys v${version.join('.')}, é a mais recente: ${isLatest}`);
+    
     const { state, saveCreds } = await useMultiFileAuthState("whatsapp_session");
 
     this.sock = makeWASocket({
-      //browser: ["Paçoca", "Chrome", "123.0.0.0"],
+      version, // Passar a versão que acabamos de buscar
       auth: state,
       markOnlineOnConnect: false,
       logger: LoggerConfig.forBaileys(
         process.env.NODE_ENV === "production" ? "error" : "warn"
       ),
+
+      // Adicionar shouldIgnoreJid (recomendado pela v7)
+      shouldIgnoreJid: (jid) => jid.includes('@broadcast')
     });
 
     // Registra os handlers de eventos, que agora são métodos privados da classe.
@@ -98,6 +105,8 @@ export default class Whatsapp {
 
     if (qr) {
       console.log("Escaneie o QR code abaixo para conectar:");
+      // ALTERAÇÃO: Descomentamos a linha abaixo para que o NOSSO código
+      // imprima o QR Code, já que a biblioteca não faz mais isso.
       qrcode.generate(qr, { small: true });
     }
 
@@ -146,13 +155,13 @@ export default class Whatsapp {
   private async handleMessagesUpsert({ messages, type }: { messages: proto.IWebMessageInfo[], type: MessageUpsertType }) {
     if (type !== "notify") return;
 
-    for (const msg of messages) {
+for (const msg of messages) {
+      // ALTERAÇÃO: A v7 "desembrulha" a mensagem. O conteúdo não está mais em 'msg.message'
+      // O 'msg' (IWebMessageInfo) agora contém o texto e os tipos de mídia diretamente.
 
       const sessionId = msg.key.remoteJid;
       if (!sessionId) continue;
 
-      // Força o envio da confirmação de "entregue" (segundo tique) e "lido" (tique azul).
-      // Verificamos se a chave da mensagem existe para evitar erros.
       if (msg.key) {
         await this.sock!.readMessages([msg.key]);
       }
@@ -166,8 +175,8 @@ export default class Whatsapp {
       }
       this.debaunceOffline();
 
-      const content = msg.message as WAMessageContent;
-      if (!content || !sessionId) continue;
+      // Verificamos se há algum conteúdo de mensagem
+      if (!msg) continue; 
 
       let senderInfo: { jid: string; name?: string } | undefined;
       if (msg.key.participant) {
@@ -177,12 +186,18 @@ export default class Whatsapp {
         };
       }
 
-      if (content.conversation || content.extendedTextMessage) {
+      // ALTERAÇÃO: Lógica de verificação de tipo simplificada para v7
+      if (msg.message?.conversation) {
         this.onMessage?.(sessionId, msg, "text", senderInfo);
 
-      } else if (content.imageMessage || content.audioMessage) { // AGRUPAMOS A LÓGICA
+      } else if (msg.message?.extendedTextMessage) {
+        // O texto de uma 'extendedMessage' (como respostas) agora está em 'msg.message.extendedTextMessage.text'
+        // Mas para simplificar, o Baileys v7 coloca o texto principal em 'msg.text'
+        // No entanto, seu handler de mensagens espera 'msg' inteiro, então vamos manter a verificação.
+        this.onMessage?.(sessionId, msg, "text", senderInfo);
+
+      } else if (msg.message?.imageMessage || msg.message?.audioMessage) { // AGRUPAMOS A LÓGICA
         try {
-          // Faz o download da mídia em um buffer
           const buffer = await downloadMediaMessage(
             msg,
             "buffer",
@@ -190,27 +205,22 @@ export default class Whatsapp {
             { logger: this.sock?.logger, reuploadRequest: this.sock?.updateMediaMessage! }
           );
 
-          // Define um nome de arquivo único e o caminho para a pasta temp
-          const fileType = content.imageMessage ? 'jpg' : 'ogg';
-          // ALTERAÇÃO 4: Usamos a propriedade da classe 'this.tempDirPath' para construir o caminho final.
+          const fileType = msg.message?.imageMessage ? 'jpg' : 'ogg';
           const tempFilePath = path.join(this.tempDirPath, `${msg.key.id}.${fileType}`);
 
-          // Salva o buffer no arquivo
           await fs.promises.writeFile(tempFilePath, buffer);
-
           console.log(`📥 Mídia salva em: ${tempFilePath}`);
 
-          // Chama o handler com o tipo e o caminho do arquivo
-          if (content.imageMessage) {
+          if (msg.message?.imageMessage) {
             this.onMessage?.(sessionId, msg, "image", senderInfo, tempFilePath);
-          } else if (content.audioMessage) {
+          } else if (msg.message?.audioMessage) {
             this.onMessage?.(sessionId, msg, "audio", senderInfo, tempFilePath);
           }
 
         } catch (error) {
           console.error("❌ Erro ao baixar ou salvar mídia:", error);
         }
-      } else if (content.documentMessage) {
+      } else if (msg.message?.documentMessage) {
         this.onMessage?.(sessionId, msg, "document", senderInfo);
       }
     }

@@ -197,11 +197,11 @@ export default async function generateResponse(
       const reliableModelConfig = modelsData[config.RELIABLE_MODEL];
       beautifulLogger.aiGeneration("processing", `[DUAL-2] Enviando plano para modelo codificador: ${reliableModelConfig.MODEL_NAME}`);
 
-const coderMessages: ChatCompletionMessageParam[] = [
-        // PERSONALITY_PROMPT aqui para dar contexto sobre o formato JSON esperado
+      const coderMessages: ChatCompletionMessageParam[] = [
+        // Usamos o PERSONALITY_PROMPT aqui para dar contexto sobre o formato JSON esperado
         { role: "system", content: PERSONALITY_PROMPT }, 
-        // Usar o conteúdo limpo
-        { role: "user", content: `${JSON_CODER_PROMPT}\n\n"${cleanedContent}"` },
+        // CORREÇÃO: Usamos o conteúdo limpo E removemos as aspas extras
+        { role: "user", content: `${JSON_CODER_PROMPT}\n\n${cleanedContent}` },
       ];
 
       const coderInputText = coderMessages.map((msg) => msg.content || '').join("\n");
