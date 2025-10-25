@@ -1,5 +1,3 @@
 {
-  "MODE": "dual",
-  "CREATIVE_MODEL": "exp",
-  "RELIABLE_MODEL": "nemo"
+  "MAIN_MODEL": "exp" 
 }

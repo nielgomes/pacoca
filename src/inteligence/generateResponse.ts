@@ -1,13 +1,12 @@
 //src/inteligence/generateResponse.ts
-import { ChatCompletionMessageParam } from "openai/resources";
+import { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources";
 import { openai } from "../services/openai";
 import { Data } from "../utils/database";
-import { CREATIVE_PROMPT, JSON_CODER_PROMPT } from "../constants/DUAL_MODEL_PROMPTS";
 import beautifulLogger from "../utils/beautifulLogger";
 import models from '../../model.json';
 import config from "../utils/config";
 import mediaCatalog from '../../media_catalog.json';
-import { Message, BotResponse, GenerateResponseResult } from "./types";
+import { Message, BotResponse, GenerateResponseResult, BotAction } from "./types";
 import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
 
 
@@ -53,63 +52,136 @@ const formatDataForPrompt = (data: Data): string => {
   return formattedData.trim();
 };
 
-// --- Schema da Resposta da IA ---
-const RESPONSE_SCHEMA = {
-  type: "json_schema" as const,
-  json_schema: {
-    name: "bot_response",
-    strict: false,
-    schema: {
-      type: "object",
-      properties: {
-        actions: {
-          type: "array",
-          minItems: 1,
-          items: {
-            type: "object",
-            properties: {
-              type: {
-                type: "string",
-                enum: ["message", "sticker", "audio", "poll", "location", "meme", "contact"],
-              },
-              message: {
-                type: "object",
-                properties: {
-                  reply: { type: "string" },
-                  text: { type: "string", description: "Resposta irônica (máximo 300 caracteres)" },
-                },
-                required: ["text"],
-              },
-              sticker: { type: "string", enum: stickerOptions },
-              audio: { type: "string", enum: audioOptions },
-              meme: { type: "string", enum: memeOptions },
-              poll: {
-                type: "object",
-                properties: {
-                  question: { type: "string" },
-                  options: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 3 },
-                },
-                required: ["question", "options"],
-              },
-              location: {
-                type: "object",
-                properties: { latitude: { type: "number" }, longitude: { type: "number" } },
-                required: ["latitude", "longitude"],
-              },
-              contact: {
-                type: "object",
-                properties: { name: { type: "string" }, cell: { type: "string" } },
-                required: ["cell"],
-              },
-            },
-            required: ["type"],
+// --- DEFINIÇÃO DAS FERRAMENTAS ---
+const tools: ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "send_message",
+      description: "Envia uma mensagem de texto no chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "O conteúdo da mensagem de texto a ser enviada (máx 300 caracteres).",
+          },
+          reply_to_id: {
+            type: "string",
+            description: "O ID da mensagem à qual esta mensagem deve responder (opcional).",
           },
         },
+        required: ["text"],
       },
-      required: ["actions"],
     },
   },
-};
+  {
+    type: "function",
+    function: {
+      name: "send_sticker",
+      description: "Envia um sticker (figurinha) para expressar uma emoção.",
+      parameters: {
+        type: "object",
+        properties: {
+          sticker_name: {
+            type: "string",
+            description: "O nome exato do arquivo do sticker (ex: 'feliz.webp').",
+            enum: stickerOptions, // Usamos a lista carregada do mediaCatalog
+          },
+        },
+        required: ["sticker_name"],
+      },
+    },
+  },
+    {
+    type: "function",
+    function: {
+      name: "send_audio",
+      description: "Envia um meme de áudio curto (.mp3).",
+      parameters: {
+        type: "object",
+        properties: {
+          audio_name: {
+            type: "string",
+            description: "O nome exato do arquivo de áudio (ex: 'WINDOWS-STARTUP.mp3').",
+            enum: audioOptions,
+          },
+        },
+        required: ["audio_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_meme_image",
+      description: "Envia uma imagem de meme (.jpg).",
+      parameters: {
+        type: "object",
+        properties: {
+          meme_name: {
+            type: "string",
+            description: "O nome exato do arquivo da imagem do meme (ex: 'ai-que-burro-da-zero-pra-ele.jpg').",
+            enum: memeOptions,
+          },
+        },
+        required: ["meme_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_poll",
+      description: "Cria uma enquete no chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "A pergunta da enquete." },
+          options: {
+            type: "array",
+            description: "Uma lista de exatamente 3 opções de texto para a enquete.",
+            items: { type: "string" },
+            minItems: 3,
+            maxItems: 3,
+          },
+        },
+        required: ["question", "options"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_location",
+      description: "Envia uma localização geográfica.",
+      parameters: {
+        type: "object",
+        properties: {
+          latitude: { type: "number", description: "A latitude." },
+          longitude: { type: "number", description: "A longitude." },
+        },
+        required: ["latitude", "longitude"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_contact",
+      description: "Envia um cartão de contato.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "O nome a ser exibido no cartão de contato." },
+          cell: { type: "string", description: "O número de telefone no formato internacional (ex: +5561999999999)." },
+        },
+        required: ["cell", "name"], // Tornando name obrigatório aqui
+      },
+    },
+  },
+];
+
 
 export default async function generateResponse(
   data: Data,
@@ -145,226 +217,344 @@ export default async function generateResponse(
   const groupData = data[sessionId] || {};
   const contextData = formatDataForPrompt(groupData);
 
-  // Acessamos os nomes e valores dos modelos dinamicamente a partir do model.json
+  // Acessamos o modelo principal da config simplificada
   const modelsData = models as Record<string, { MODEL_NAME: string; MODEL_PRICING: { input: number; output: number; } }>;
+  const modelConfig = modelsData[config.MAIN_MODEL];
+  const MODEL_NAME = modelConfig.MODEL_NAME;
+  const MODEL_PRICING = modelConfig.MODEL_PRICING;
 
-  try {
-    if (config.MODE === 'dual') {
-      beautifulLogger.aiGeneration("mode", `Executando no modo DUAL.`);
-      
-      // --- PASSO 1: CHAMADA CRIATIVA ---
-      const creativeModelConfig = modelsData[config.CREATIVE_MODEL];
-      beautifulLogger.aiGeneration("processing", `[DUAL-1] Enviando requisição para modelo criativo: ${creativeModelConfig.MODEL_NAME}`);
+  beautifulLogger.aiGeneration("mode", `Executando no modo TOOL CALLING com modelo: ${MODEL_NAME}`);
 
-      const creativeMessages: ChatCompletionMessageParam[] = [
-        { role: "system", content: CREATIVE_PROMPT },
-        { role: "assistant", content: `${contextData}\n\n${mediaContext}` },
-        { role: "user", content: `Conversa: \n\n${messagesMaped}` },
-      ];
-      
-      const creativeInputText = creativeMessages.map((msg) => msg.content || '').join("\n");
-      const creativeInputTokens = calculateTokens(creativeInputText);
+  // src/inteligence/generateResponse.ts (NOVO com Tool Calling)
+import { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources"; // Adicionado ChatCompletionTool
+import { openai } from "../services/openai";
+import { Data } from "../utils/database";
+import beautifulLogger from "../utils/beautifulLogger";
+import models from '../../model.json';
+import config from "../utils/config"; // Agora usa a config simplificada
+import mediaCatalog from '../../media_catalog.json';
+import { Message, BotResponse, GenerateResponseResult, BotAction } from "./types"; // Importado BotAction
+import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT"; // Agora usa o prompt simplificado
 
-      const creativeResponse = await openai.chat.completions.create({
-        model: creativeModelConfig.MODEL_NAME,
-        messages: creativeMessages,
-        temperature: 0.8,
-        max_tokens: 600,
-      }, { timeout: 30 * 1000 });
-      
-      const creativeContent = creativeResponse.choices[0]?.message?.content;
-      if (!creativeContent) throw new Error("[DUAL-1] Modelo criativo não retornou conteúdo.");
-      
-      const creativeOutputTokens = calculateTokens(creativeContent);
-      beautifulLogger.aiGeneration("processing", `[DUAL-1] Plano de ação recebido: "${creativeContent}"`);
+// Removida a importação de DUAL_MODEL_PROMPTS
 
-      // =========================================================================
-      // Limpeza da resposta do modelo criativo antes de enviar ao codificador.
-      // Isso remove qualquer texto extra (como "Plano:") que a IA possa ter adicionado.
-      // =========================================================================
-      let cleanedContent = creativeContent;
-      const planKeyword = "plano:";
-      const lastPlanIndex = cleanedContent.toLowerCase().lastIndexOf(planKeyword);
+// --- Listas de Mídia (permanecem iguais) ---
+const stickerOptions = mediaCatalog.stickers.map(sticker => sticker.file);
+const audioOptions = mediaCatalog.audios.map(audio => audio.file);
+const memeOptions = mediaCatalog.memes.map(meme => meme.file);
 
-      if (lastPlanIndex !== -1) {
-          // Pega tudo que vem DEPOIS da última ocorrência de "plano:"
-          cleanedContent = cleanedContent.substring(lastPlanIndex + planKeyword.length).trim();
-          beautifulLogger.aiGeneration("processing", `[DUAL-1.5] Resposta "suja" detectada. Limpando para: "${cleanedContent}"`);
+// --- Funções Auxiliares (permanecem iguais) ---
+function calculateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+const formatDataForPrompt = (data: Data): string => {
+  // ... (função inalterada) ...
+  let formattedData = "Resumo da conversa e opiniões dos usuários:\n\n";
+  if (data.summary) {
+    formattedData += `📋 RESUMO DA CONVERSA:\n${data.summary}\n\n`;
+  }
+  if (data.opinions && data.opinions.length > 0) {
+    formattedData += `👥 OPINÕES SOBRE OS USUÁRIOS:\n`;
+    data.opinions.forEach((opinion) => {
+      let opinionText = "NEUTRO/MISTO";
+      if (opinion.opinion < 20) opinionText = "ODEIO ELE";
+      else if (opinion.opinion < 40) opinionText = "NÃO GOSTO";
+      else if (opinion.opinion < 60) opinionText = "NEUTRO/MISTO";
+      else if (opinion.opinion < 80) opinionText = "GOSTO BASTANTE";
+      else if (opinion.opinion <= 100) opinionText = "APAIXONADA";
+      formattedData += `• ${opinion.name} (${opinion.jid}):\n`;
+      formattedData += `  - Nível de opinião: ${opinion.opinion}/100 (${opinionText})\n`;
+      if (opinion.traits?.length) {
+        formattedData += `  - Características: ${opinion.traits.join(", ")}\n`;
       }
-      // =========================================================================
+      formattedData += "\n";
+    });
+  }
+  return formattedData.trim();
+};
 
-      // --- PASSO 2: CHAMADA CODIFICADORA ---
-      const reliableModelConfig = modelsData[config.RELIABLE_MODEL];
-      beautifulLogger.aiGeneration("processing", `[DUAL-2] Enviando plano para modelo codificador: ${reliableModelConfig.MODEL_NAME}`);
+// --- DEFINIÇÃO DAS FERRAMENTAS (NOVO) ---
+const tools: ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "send_message",
+      description: "Envia uma mensagem de texto no chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "O conteúdo da mensagem de texto a ser enviada (máx 300 caracteres).",
+          },
+          reply_to_id: {
+            type: "string",
+            description: "O ID da mensagem à qual esta mensagem deve responder (opcional).",
+          },
+        },
+        required: ["text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_sticker",
+      description: "Envia um sticker (figurinha) para expressar uma emoção.",
+      parameters: {
+        type: "object",
+        properties: {
+          sticker_name: {
+            type: "string",
+            description: "O nome exato do arquivo do sticker (ex: 'feliz.webp').",
+            enum: stickerOptions, // Usamos a lista carregada do mediaCatalog
+          },
+        },
+        required: ["sticker_name"],
+      },
+    },
+  },
+    {
+    type: "function",
+    function: {
+      name: "send_audio",
+      description: "Envia um meme de áudio curto (.mp3).",
+      parameters: {
+        type: "object",
+        properties: {
+          audio_name: {
+            type: "string",
+            description: "O nome exato do arquivo de áudio (ex: 'WINDOWS-STARTUP.mp3').",
+            enum: audioOptions,
+          },
+        },
+        required: ["audio_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_meme_image",
+      description: "Envia uma imagem de meme (.jpg).",
+      parameters: {
+        type: "object",
+        properties: {
+          meme_name: {
+            type: "string",
+            description: "O nome exato do arquivo da imagem do meme (ex: 'ai-que-burro-da-zero-pra-ele.jpg').",
+            enum: memeOptions,
+          },
+        },
+        required: ["meme_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_poll",
+      description: "Cria uma enquete no chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "A pergunta da enquete." },
+          options: {
+            type: "array",
+            description: "Uma lista de exatamente 3 opções de texto para a enquete.",
+            items: { type: "string" },
+            minItems: 3,
+            maxItems: 3,
+          },
+        },
+        required: ["question", "options"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_location",
+      description: "Envia uma localização geográfica.",
+      parameters: {
+        type: "object",
+        properties: {
+          latitude: { type: "number", description: "A latitude." },
+          longitude: { type: "number", description: "A longitude." },
+        },
+        required: ["latitude", "longitude"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_contact",
+      description: "Envia um cartão de contato.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "O nome a ser exibido no cartão de contato." },
+          cell: { type: "string", description: "O número de telefone no formato internacional (ex: +5561999999999)." },
+        },
+        required: ["cell", "name"], // Tornando name obrigatório aqui
+      },
+    },
+  },
+];
 
-      const coderMessages: ChatCompletionMessageParam[] = [
-        // Usamos o PERSONALITY_PROMPT aqui para dar contexto sobre o formato JSON esperado
-        { role: "system", content: PERSONALITY_PROMPT }, 
-        // CORREÇÃO: Usamos o conteúdo limpo E removemos as aspas extras
-        { role: "user", content: `${JSON_CODER_PROMPT}\n\n${cleanedContent}` },
-      ];
 
-      const coderInputText = coderMessages.map((msg) => msg.content || '').join("\n");
-      const coderInputTokens = calculateTokens(coderInputText);
+export default async function generateResponse(
+  data: Data,
+  messages: Message[],
+  sessionId: string
+): Promise<GenerateResponseResult> {
+  beautifulLogger.aiGeneration("start", "Iniciando geração de resposta...");
+  const messagesMaped = messages
+    .map((message) => `${message.name}: ${message.content}`)
+    .join("\n");
 
-      const coderResponse = await openai.chat.completions.create({
-        model: reliableModelConfig.MODEL_NAME,
-        messages: coderMessages,
-        response_format: RESPONSE_SCHEMA,
-        temperature: 0.8,
-        max_tokens: 600,
-      }, { timeout: 30 * 1000 });
+  beautifulLogger.aiGeneration("processing", {
+    "mensagens processadas": messages.length,
+    "mensagem mais recente": messages.at(-1)?.content || "nenhuma",
+  });
 
-      const coderContent = coderResponse.choices[0]?.message?.content;
-      if (!coderContent) throw new Error("[DUAL-2] Modelo codificador não retornou conteúdo.");
+  // Contexto de mídia e dados (permanecem iguais)
+  let mediaContext = "INFORMAÇÕES SOBRE MÍDIAS DISPONÍVEIS PARA USO:\n\n";
+  // ... (código para montar mediaContext inalterado) ...
+  mediaContext += "STICKERS DISPONÍVEIS:\n";
+  mediaCatalog.stickers.forEach(s => {
+    mediaContext += `- arquivo: "${s.file}", descrição: "${s.description}"\n`;
+  });
+  mediaContext += "\nÁUDIOS DISPONÍVEIS:\n";
+  mediaCatalog.audios.forEach(a => {
+    mediaContext += `- arquivo: "${a.file}", descrição: "${a.description}"\n`;
+  });
+  mediaContext += "\nMEMES DISPONÍVEIS:\n";
+  mediaCatalog.memes.forEach(m => {
+    mediaContext += `- arquivo: "${m.file}", descrição: "${m.description}"\n`;
+  });
+  const groupData = data[sessionId] || {};
+  const contextData = formatDataForPrompt(groupData);
 
-      const coderOutputTokens = calculateTokens(coderContent);
-      
-      // --- CÁLCULO DE CUSTO COMBINADO ---
-      const totalInputTokens = creativeInputTokens + coderInputTokens;
-      const totalOutputTokens = creativeOutputTokens + coderOutputTokens;
-      const totalTokens = totalInputTokens + totalOutputTokens;
+  // Acessamos o modelo principal da config simplificada
+  const modelsData = models as Record<string, { MODEL_NAME: string; MODEL_PRICING: { input: number; output: number; } }>;
+  const modelConfig = modelsData[config.MAIN_MODEL];
+  const MODEL_NAME = modelConfig.MODEL_NAME;
+  const MODEL_PRICING = modelConfig.MODEL_PRICING;
 
-      const creativeCost = (creativeInputTokens * creativeModelConfig.MODEL_PRICING.input / 1000000) + (creativeOutputTokens * creativeModelConfig.MODEL_PRICING.output / 1000000);
-      const reliableCost = (coderInputTokens * reliableModelConfig.MODEL_PRICING.input / 1000000) + (coderOutputTokens * reliableModelConfig.MODEL_PRICING.output / 1000000);
-      const totalCost = creativeCost + reliableCost;
-      
-      // Criamos o objeto de custo ANTES para que possamos retorná-lo mesmo em caso de falha
-      const costResult = { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, totalTokens, cost: totalCost };
-      
-      beautifulLogger.aiGeneration("cost", {
-        "modo": "DUAL",
-        "modelo criativo": creativeModelConfig.MODEL_NAME,
-        "modelo codificador": reliableModelConfig.MODEL_NAME,
-        "tokens total (est.)": totalTokens,
-        "custo total (USD)": `$${totalCost.toFixed(8)}`,
-      });
+  beautifulLogger.aiGeneration("mode", `Executando no modo TOOL CALLING com modelo: ${MODEL_NAME}`);
 
-      // --- VALIDAÇÃO E PARSE DO JSON ---
-      const jsonMatch = coderContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch || !jsonMatch[0]) {
-          beautifulLogger.error("JSON_PARSE", "[DUAL-2] Nenhum bloco JSON foi retornado pelo codificador.", { resposta: coderContent });
-          // Retornamos uma ação vazia, mas com o custo correto
-          return { actions: [], cost: costResult };
-      }
+  // Montamos as mensagens para a IA
+  const inputMessages: ChatCompletionMessageParam[] = [
+    { role: "system", content: PERSONALITY_PROMPT }, // Prompt simplificado
+    { role: "assistant", content: `${contextData}\n\n${mediaContext}` },
+    { role: "user", content: `Histórico da Conversa:\n\n${messagesMaped}\n\n---\nCom base na conversa e na sua personalidade, escolha quais ferramentas usar (se alguma).` },
+  ];
+  
+  const inputText = inputMessages.map((msg) => msg.content || '').join("\n");
+  const inputTokens = calculateTokens(inputText);
 
-      // ALTERAÇÃO: Adicionamos um try...catch específico para o JSON.parse
-      let parsedResponse: { actions: BotResponse };
-      try {
-          parsedResponse = JSON.parse(jsonMatch[0]) as { actions: BotResponse };
-      } catch (parseError: any) {
-          // Se o JSON.parse falhar (como no seu log), nós capturamos o erro
-          beautifulLogger.error("JSON_PARSE", "[DUAL-2] Falha ao parsear o JSON do codificador. SyntaxError.", {
-              "erro": parseError.message,
-              "json_quebrado": jsonMatch[0] // Logamos o JSON quebrado para debug
-          });
-          // Retornamos uma ação vazia para não quebrar o bot
-          return { actions: [], cost: costResult };
-      }
+  beautifulLogger.aiGeneration("tokens", { "tokens de entrada (estimado)": inputTokens });
+  beautifulLogger.aiGeneration("processing", `Enviando requisição com ferramentas para: ${MODEL_NAME}`);
+  
+  
+try {
+    // --- CHAMADA DA API COM FERRAMENTAS ---
+    const response = await openai.chat.completions.create({
+      model: MODEL_NAME,
+      messages: inputMessages,
+      tools: tools, // Enviamos a definição das ferramentas
+      tool_choice: "auto", // Deixamos a IA decidir se e qual ferramenta usar
+      temperature: 0.7, // Um pouco menos de temperatura pode ajudar com tool calling
+      max_tokens: 500, // Ajuste conforme necessário, mas tool calls são mais curtos
+    }, {
+      timeout: 45 * 1000, // Aumentar um pouco o timeout pode ser bom
+    });
 
-      if (!parsedResponse || !Array.isArray(parsedResponse.actions)) {
-          beautifulLogger.error("JSON_PARSE", "[DUAL-2] O JSON parseado não contém um array 'actions' válido.", { json_parseado: parsedResponse });
-          return { actions: [], cost: costResult };
-      }
+    const responseMessage = response.choices[0]?.message;
+    if (!responseMessage) {
+      throw new Error("A IA não retornou nenhuma mensagem de resposta.");
+    }
 
-      beautifulLogger.aiGeneration("complete", {
-        "ações processadas": parsedResponse.actions.length,
-        "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
-      });
-      
-      return { actions: parsedResponse.actions, cost: costResult };
+    // Calculamos custo e tokens (simplificado, APIs podem cobrar por tool calls de forma diferente)
+    const outputContent = JSON.stringify(responseMessage.tool_calls || responseMessage.content || '');
+    const outputTokens = calculateTokens(outputContent);
+    const totalTokens = inputTokens + outputTokens;
+    const cost = (inputTokens * MODEL_PRICING.input / 1000000) + (outputTokens * MODEL_PRICING.output / 1000000);
+    const costResult = { inputTokens, outputTokens, totalTokens, cost };
+    const costMessage = cost === 0 ? `$${cost.toFixed(8)} (modelo gratuito)` : `$${cost.toFixed(8)}`;
 
-    } else {
-      // =========================================================================
-      // ALTERAÇÃO: MODO SINGLE - SUA LÓGICA ORIGINAL FOI MOVIDA PARA CÁ
-      // =========================================================================
-      beautifulLogger.aiGeneration("mode", `Executando no modo SINGLE.`);
-
-      const modelConfig = modelsData[config.RELIABLE_MODEL];
-      const MODEL_NAME = modelConfig.MODEL_NAME;
-      const MODEL_PRICING = modelConfig.MODEL_PRICING;
-
-      const inputMessages: ChatCompletionMessageParam[] = [
-        { role: "system", content: PERSONALITY_PROMPT },
-        { role: "assistant", content: `${contextData}\n\n${mediaContext}` },
-        { role: "user", content: `Conversa: \n\n${messagesMaped}` },
-      ];
-
-      const inputText = inputMessages.map((msg) => msg.content || '').join("\n");
-      const inputTokens = calculateTokens(inputText);
-
-      beautifulLogger.aiGeneration("tokens", { "tokens de entrada (estimado)": inputTokens });
-      beautifulLogger.aiGeneration("processing", `[SINGLE] Enviando requisição para: ${MODEL_NAME}`);
-      
-      const response = await openai.chat.completions.create({
-          model: MODEL_NAME,
-          messages: inputMessages,
-          response_format: RESPONSE_SCHEMA,
-          temperature: 0.8,
-          max_tokens: 600,
-      }, {
-          timeout: 30 * 1000,
-      });
-
-      if (!response.choices || response.choices.length === 0 || !response.choices[0].message) {
-          throw new Error("A IA não retornou nenhuma opção de resposta (array 'choices' vazio).");
-      }
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-          throw new Error("Nenhuma resposta foi gerada pela IA (conteúdo vazio).");
-      }
-
-      const outputTokens = calculateTokens(content);
-      const totalTokens = inputTokens + outputTokens;
-      const cost = (inputTokens * MODEL_PRICING.input / 1000000) + (outputTokens * MODEL_PRICING.output / 1000000);
-      const costMessage = cost === 0 ? `$${cost.toFixed(8)} (modelo gratuito)` : `$${cost.toFixed(8)}`;
-
-      beautifulLogger.aiGeneration("cost", {
+     beautifulLogger.aiGeneration("cost", {
           "modelo utilizado": MODEL_NAME,
           "tokens entrada (est.)": inputTokens,
           "tokens saída (est.)": outputTokens,
           "tokens total (est.)": totalTokens,
           "custo (USD)": costMessage,
-});
-      
-      // Criamos o objeto de custo ANTES para que possamos retorná-lo mesmo em caso de falha
-      const costResult = { inputTokens, outputTokens, totalTokens, cost };
+     });
 
-      // --- VALIDAÇÃO E PARSE DO JSON ---
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch || !jsonMatch[0]) {
-          beautifulLogger.error("JSON_PARSE", "[SINGLE] Nenhum bloco JSON foi retornado pelo codificador.", { resposta: content });
-          return { actions: [], cost: costResult };
-      }
+    // --- PROCESSAMENTO DA RESPOSTA COM TOOL CALLING ---
+    const toolCalls = responseMessage.tool_calls;
+    const finalActions: BotAction[] = [];
 
-      // ALTERAÇÃO: Adicionamos um try...catch específico para o JSON.parse
-      let parsedResponse: { actions: BotResponse };
-      try {
-          parsedResponse = JSON.parse(jsonMatch[0]) as { actions: BotResponse };
-      } catch (parseError: any) {
-          beautifulLogger.error("JSON_PARSE", "[SINGLE] Falha ao parsear o JSON do codificador. SyntaxError.", {
-              "erro": parseError.message,
-              "json_quebrado": jsonMatch[0] 
+    if (toolCalls && toolCalls.length > 0) {
+      beautifulLogger.aiGeneration("processing", `IA solicitou ${toolCalls.length} chamada(s) de ferramenta.`);
+
+      for (const toolCall of toolCalls) {
+        const functionName = toolCall.function.name;
+        let functionArgs: any;
+        try {
+          // Os argumentos vêm como string JSON, precisamos parsear
+          functionArgs = JSON.parse(toolCall.function.arguments);
+        } catch (e) {
+            beautifulLogger.error("TOOL_CALL_PARSE", `Erro ao parsear argumentos para a ferramenta ${functionName}`, { args: toolCall.function.arguments, error: e });
+            continue; // Pula esta ferramenta se os argumentos estiverem quebrados
+        }
+
+        // Convertemos a chamada da ferramenta para o nosso formato BotAction
+        if (functionName === 'send_message' && functionArgs.text) {
+          finalActions.push({
+            type: 'message',
+            message: { text: functionArgs.text, reply: functionArgs.reply_to_id },
           });
-          return { actions: [], cost: costResult };
+        } else if (functionName === 'send_sticker' && functionArgs.sticker_name) {
+          finalActions.push({ type: 'sticker', sticker: functionArgs.sticker_name });
+        } else if (functionName === 'send_audio' && functionArgs.audio_name) {
+          finalActions.push({ type: 'audio', audio: functionArgs.audio_name });
+        } else if (functionName === 'send_meme_image' && functionArgs.meme_name) {
+           finalActions.push({ type: 'meme', meme: functionArgs.meme_name });
+        } else if (functionName === 'create_poll' && functionArgs.question && functionArgs.options) {
+           finalActions.push({ type: 'poll', poll: { question: functionArgs.question, options: functionArgs.options } });
+        } else if (functionName === 'send_location' && functionArgs.latitude && functionArgs.longitude) {
+           finalActions.push({ type: 'location', location: { latitude: functionArgs.latitude, longitude: functionArgs.longitude } });
+        } else if (functionName === 'send_contact' && functionArgs.cell && functionArgs.name) {
+           finalActions.push({ type: 'contact', contact: { name: functionArgs.name, cell: functionArgs.cell } });
+        } else {
+            beautifulLogger.warn("TOOL_CALL_UNKNOWN", `IA chamou uma ferramenta desconhecida ou com argumentos inválidos: ${functionName}`);
+        }
       }
-
-      if (!parsedResponse || !Array.isArray(parsedResponse.actions)) {
-          beautifulLogger.error("JSON_PARSE", "[SINGLE] O JSON parseado não contém um array 'actions' válido.", { json_parseado: parsedResponse });
-          return { actions: [], cost: costResult };
-      }
-
-      beautifulLogger.aiGeneration("complete", {
-          "ações processadas": parsedResponse.actions.length,
-          "tipos de ação": parsedResponse.actions.map((a) => a.type).join(", "),
-      });
-      
-      return { actions: parsedResponse.actions, cost: costResult };
+    } else {
+        // Se a IA não chamou nenhuma ferramenta, ela pode ter respondido com texto normal.
+        // Podemos tratar isso como uma mensagem ou simplesmente ignorar (preferível se ela deveria usar ferramentas).
+        if (responseMessage.content) {
+             beautifulLogger.warn("TOOL_CALL_MISSING", "IA respondeu com texto normal em vez de usar uma ferramenta.", { content: responseMessage.content });
+             // Opcional: Poderia adicionar uma ação de mensagem aqui, mas pode indicar erro no prompt.
+             // finalActions.push({ type: 'message', message: { text: responseMessage.content } });
+        } else {
+            beautifulLogger.aiGeneration("complete", "IA decidiu não tomar nenhuma ação.");
+        }
     }
+
+    beautifulLogger.aiGeneration("complete", {
+        "ações processadas": finalActions.length,
+        "tipos de ação": finalActions.map((a) => a.type).join(", ") || "Nenhuma",
+    });
+
+    return { actions: finalActions, cost: costResult };
+
   } catch (error: any) {
-    // ALTERAÇÃO: Este bloco de catch agora lida com erros de AMBOS os modos.
     beautifulLogger.aiGeneration("error", {
-      erro: "Falha crítica na chamada da API ou na análise da resposta.",
+      erro: "Falha crítica na chamada da API ou no processamento da resposta.",
       "mensagem de erro": error.message,
     });
     // Lançamos o erro para que o 'catch' principal em rapy.ts possa lidar com ele.
