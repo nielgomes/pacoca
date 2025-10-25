@@ -281,6 +281,7 @@ try {
 
       for (const toolCall of toolCalls) {
         const functionName = toolCall.function.name;
+        const rawArgsString = toolCall.function.arguments;
         let functionArgs: any;
         try {
             let jsonStringToParse = rawArgsString;
