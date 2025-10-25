@@ -27,7 +27,7 @@ export default async function generateConversationStarter(context: string): Prom
         content: systemPrompt
       },
     ],
-    max_tokens: 200,
+    max_tokens: 600,
     temperature: 0.9, // Aumentamos a criatividade para a mensagem de abertura
   });
 

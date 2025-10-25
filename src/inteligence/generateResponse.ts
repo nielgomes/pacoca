@@ -169,7 +169,7 @@ export default async function generateResponse(
         model: creativeModelConfig.MODEL_NAME,
         messages: creativeMessages,
         temperature: 0.8,
-        max_tokens: 200,
+        max_tokens: 600,
       }, { timeout: 30 * 1000 });
       
       const creativeContent = creativeResponse.choices[0]?.message?.content;
@@ -212,7 +212,7 @@ export default async function generateResponse(
         messages: coderMessages,
         response_format: RESPONSE_SCHEMA,
         temperature: 0.8,
-        max_tokens: 200,
+        max_tokens: 600,
       }, { timeout: 30 * 1000 });
 
       const coderContent = coderResponse.choices[0]?.message?.content;
@@ -301,7 +301,7 @@ export default async function generateResponse(
           messages: inputMessages,
           response_format: RESPONSE_SCHEMA,
           temperature: 0.8,
-          max_tokens: 200,
+          max_tokens: 600,
       }, {
           timeout: 30 * 1000,
       });
