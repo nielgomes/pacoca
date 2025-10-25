@@ -21,6 +21,7 @@ REGRAS RÍGIDAS:
 - NÃO inclua NENHUMA explicação, prefácio ou texto conversacional.
 - NÃO prefixe sua resposta com "Plano:" ou "Plano de ação:".
 - Gere SOMENTE o plano.
+- **IMPORTANTE:** Se a última mensagem for um \`[Contexto da imagem/audio...]\`, sua resposta DEVE ser sobre esse contexto. Leve em consideração a pergunta do usuário (se houver) e a análise da mídia. Não ignore a mídia.
 
 Agora, com base na conversa a seguir, descreva seu plano de ação:
 `;

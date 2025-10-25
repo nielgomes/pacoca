@@ -98,18 +98,22 @@ export default async function rapy(whatsapp: Whatsapp) {
         // Usa o MemoryManager para obter o histórico da conversa
         const currentMessages = memory.getMessages(sessionId, isGroup);
 
-        if (type === "audio" || type === "image") {
+if (type === "audio" || type === "image") {
             if (!mediaPath) return;
 
             await whatsapp.setTyping(sessionId);
             
+            // Capturamos a legenda original do usuário primeiro
+            const userCaption = msg.message?.imageMessage?.caption || "";
+
             let analysisResult = "";
             if (type === "audio") {
                 beautifulLogger.info("GEMINI", `Processando áudio de ${senderName}...`);
                 analysisResult = await analyzeAudio(mediaPath);
             } else {
                 beautifulLogger.info("GEMINI", `Processando imagem de ${senderName}...`);
-                analysisResult = await analyzeImage(mediaPath, msg.message?.imageMessage?.caption || "");
+                // Passamos a legenda para o Gemini (como você já fazia)
+                analysisResult = await analyzeImage(mediaPath, userCaption);
             }
 
             try {
@@ -118,20 +122,27 @@ export default async function rapy(whatsapp: Whatsapp) {
             } catch (e) {
                 beautifulLogger.error("CLEANUP", `Falha ao remover arquivo temporário ${mediaPath}`, e);
             }
-
-            const contextMessage: Message[0] = {
-              // A mensagem agora é uma observação interna do Paçoca
-              content: `(Paçoca pensou sobre a ${type} que recebeu de ${senderName}: "${analysisResult}")`,
-              // O autor da "mensagem" é o próprio Paçoca
-              name: "Paçoca",
-              // Não está associado a nenhum usuário específico
+            
+            // Se o usuário mandou uma legenda (pergunta), nós a adicionamos
+            if (userCaption) {
+                currentMessages.push({
+                    content: `(${senderName}{userid: ${senderJid}}): ${userCaption} (junto com uma ${type})`,
+                    name: senderName,
+                    jid: senderJid,
+                    ia: false,
+                });
+            }
+            
+            // adicionamos a análise do Gemini como um "FATO" no chat.
+            const contextMessage: Message = { // Corrige a tipagem de Message[0] para Message
+              content: `[Contexto da ${type} enviada por ${senderName}: ${analysisResult}]`,
+              name: "Contexto",
               jid: "",
-              // É uma ação/pensamento da IA
               ia: true,
             };
             currentMessages.push(contextMessage);
 
-            // CORREÇÃO: Passamos os parâmetros de contexto para a processResponse
+            // Passamos os parâmetros de contexto para a processResponse
             setTimeout(() => processResponse(sessionId, currentMessages, isGroup), 1000);
             return;
         }
