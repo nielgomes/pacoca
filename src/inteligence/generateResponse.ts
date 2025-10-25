@@ -283,11 +283,31 @@ try {
         const functionName = toolCall.function.name;
         let functionArgs: any;
         try {
-          // Os argumentos vêm como string JSON, precisamos parsear
-          functionArgs = JSON.parse(toolCall.function.arguments);
-        } catch (e) {
-            beautifulLogger.error("TOOL_CALL_PARSE", `Erro ao parsear argumentos para a ferramenta ${functionName}`, { args: toolCall.function.arguments, error: e });
-            continue; // Pula esta ferramenta se os argumentos estiverem quebrados
+            let jsonStringToParse = rawArgsString;
+
+            // Tentativa de extrair apenas o objeto JSON principal da string
+            const firstBrace = rawArgsString.indexOf('{');
+            const lastBrace = rawArgsString.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                // Extrai o conteúdo entre o primeiro { e o último }
+                jsonStringToParse = rawArgsString.substring(firstBrace, lastBrace + 1);
+                if (rawArgsString !== jsonStringToParse) {
+                     beautifulLogger.warn("TOOL_CALL_CLEAN", `Limpando string de argumentos potencialmente suja para ${functionName}. Original: "${rawArgsString}", Limpa: "${jsonStringToParse}"`);
+                }
+            } else {
+                 beautifulLogger.warn("TOOL_CALL_FORMAT", `String de argumentos para ${functionName} não parece conter um objeto JSON válido: "${rawArgsString}"`);
+                 // Mesmo assim, tentamos parsear a string original, pode ser um JSON simples (ex: "true")
+            }
+
+            // Tentamos parsear a string (original ou limpa)
+            functionArgs = JSON.parse(jsonStringToParse);
+        } catch (e: any) {
+            // Se mesmo após a limpeza o parse falhar, logamos e pulamos
+            beautifulLogger.error("TOOL_CALL_PARSE", `Erro FINAL ao parsear argumentos para ${functionName} mesmo após limpeza.`, {
+                original_args: rawArgsString,
+                error_message: e.message
+             });
+            continue;
         }
 
         // Convertemos a chamada da ferramenta para o nosso formato BotAction
