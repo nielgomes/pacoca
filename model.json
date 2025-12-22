@@ -21,7 +21,7 @@
     }
   },
   "perplexity": {
-    "MODEL_NAME": "sonar-reasoning",
+    "MODEL_NAME": "sonar-reasoning-pro",
     "MODEL_PRICING": {
       "input": 0,
       "output": 0
