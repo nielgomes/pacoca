@@ -1,16 +1,16 @@
 import POSSIBLE_RESPONSE_PROMPT from "../constants/POSSIBLE_RESPONSE_PROMPT";
 import { openai } from "../services/openai";
-import { Data } from "../utils/database";
+import { SummaryData } from "../utils/database";
 import { Message } from "./generateResponse";
 import config from '../../model.json';
 
-export default async function isPossibleResponse(data: Data, messages: Message) {
+export default async function isPossibleResponse(data: SummaryData, messages: Message) {
   const messagesMaped: string = messages
     .slice(-30)
     .map((message) => message.content)
     .join("\n");
 
-  const formatDataForPrompt = (data: Data): string => {
+  const formatDataForPrompt = (data: SummaryData): string => {
     let formattedData = "Resumo da conversa e opiniões dos usuários:\n\n";
 
     if (data.summary) {

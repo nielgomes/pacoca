@@ -79,11 +79,11 @@ Comando para instalação de aplicações em modo container first:
 
 # Visualizar sumario de grupos
 
-Use o comando `/sumario` para que o bot verifique se existem sumarios de grupos salvo no db.json, se existir 1 ou mais sumários o bot infoma o nr de quais sumarios existem, com esse numero basta rodar `/sumario [nr do grupo]` que será mostrado o ultimo sumario daquele grupo.
+Use o comando `/sumario` para que o bot verifique se existem sumarios de grupos salvos no `database/data.json`. Se existir 1 ou mais sumários o bot informa o nr de quais sumários existem, com esse número basta rodar `/sumario [nr do grupo]` que será mostrado o último sumário daquele grupo.
 
 Obs.: 
 
-- Os sumario são criados quando um grupo possui mais de 10 interações e fica mais de 5 minutos inativo, esse é o gatilho para a criação de um sumario do grupo
+- Os sumarios são criados quando um grupo possui mais de 10 interações e fica mais de 5 minutos inativo, esse é o gatilho para a criação de um sumario do grupo
 - Cada grupo possui o seu proprio sumario vinculado ao seu número de ID
 - A cada rebuild do container os sumarios são perdidos e inicia-se a criação do zero. 
 

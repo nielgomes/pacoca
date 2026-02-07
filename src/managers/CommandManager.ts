@@ -113,7 +113,7 @@ async function handleCallCommand(content: string, { whatsapp, sessionId, memory 
 
 async function handleSumarioCommand(content: string, { whatsapp, sessionId }: CommandContext) {
     beautifulLogger.info("COMANDO", "Comando '/sumario' recebido.");
-    const allData = database().getAll();
+    const allData = database().getAllGroups();
     const groupSummaries = Object.keys(allData).filter(key => key.endsWith('@g.us'));
 
     if (groupSummaries.length === 0) {

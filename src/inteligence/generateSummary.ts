@@ -1,6 +1,6 @@
 import { ChatCompletionMessageParam } from "openai/resources";
 import { openai } from "../services/openai";
-import { Data } from "../utils/database";
+import { SummaryData } from "../utils/database";
 import SUMMARY_PROMPT from "../constants/SUMMARY_PROMPT";
 import config from '../../model.json';
 
@@ -22,7 +22,7 @@ export type ResponseAction = {
 };
 
 export default async function generateSummary(
-  data: Data,
+  data: SummaryData,
   messages: Message
 ): Promise<ResponseAction> {
   const messagesMaped: string = messages
@@ -81,7 +81,7 @@ export default async function generateSummary(
     },
   };
 
-  const formatDataForPrompt = (data: Data): string => {
+  const formatDataForPrompt = (data: SummaryData): string => {
     let formattedData = "Resumo da conversa e opiniões dos usuários:\n\n";
 
     if (data.summary) {

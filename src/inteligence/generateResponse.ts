@@ -1,7 +1,7 @@
 //src/inteligence/generateResponse.ts
 import { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources";
 import { openai } from "../services/openai";
-import { Data } from "../utils/database";
+import { SummaryData } from "../utils/database";
 import beautifulLogger from "../utils/beautifulLogger";
 import models from '../../model.json';
 import config from "../utils/config";
@@ -27,7 +27,7 @@ function calculateTokens(text: string): number {
 /**
  * Formata os dados de contexto (resumo e opiniões) para o prompt da IA.
  */
-const formatDataForPrompt = (data: Data): string => {
+const formatDataForPrompt = (data: SummaryData): string => {
   let formattedData = "Resumo da conversa e opiniões dos usuários:\n\n";
   if (data.summary) {
     formattedData += `📋 RESUMO DA CONVERSA:\n${data.summary}\n\n`;
@@ -184,7 +184,7 @@ const tools: ChatCompletionTool[] = [
 
 
 export default async function generateResponse(
-  data: Data,
+  data: SummaryData,
   messages: Message[],
   sessionId: string
 ): Promise<GenerateResponseResult> {
@@ -213,8 +213,7 @@ export default async function generateResponse(
   mediaCatalog.memes.forEach(m => {
     mediaContext += `- arquivo: "${m.file}", descrição: "${m.description}"\n`;
   });
-  const groupData = data[sessionId] || {};
-  const contextData = formatDataForPrompt(groupData);
+  const contextData = formatDataForPrompt(data);
 
   // Acessamos o modelo principal da config simplificada
   const modelsData = models as Record<string, { MODEL_NAME: string; MODEL_PRICING: { input: number; output: number; } }>;

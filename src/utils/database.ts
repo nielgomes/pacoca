@@ -3,7 +3,7 @@ import path from "path";
 import { z } from "zod";
 import getHomeDir from "./getHomeDir";
 
-const DataSchema = z.object({
+const SummaryDataSchema = z.object({
   summary: z.string(),
   opinions: z.array(
     z.object({
@@ -15,7 +15,14 @@ const DataSchema = z.object({
   ),
 });
 
-export type Data = z.infer<typeof DataSchema>;
+const DataStoreSchema = z.object({
+  groups: z.record(SummaryDataSchema),
+});
+
+const LegacySchema = SummaryDataSchema;
+
+export type SummaryData = z.infer<typeof SummaryDataSchema>;
+export type DataStore = z.infer<typeof DataStoreSchema>;
 
 export default function database() {
   const file = path.join(getHomeDir(), "database", "data.json");
@@ -26,59 +33,67 @@ export default function database() {
   }
 
   if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, JSON.stringify({ summary: "", opinions: [] }, null, 2));
+    fs.writeFileSync(file, JSON.stringify({ groups: {} }, null, 2));
   }
 
   try {
     const rawData = fs.readFileSync(file, "utf-8");
     const data = JSON.parse(rawData);
-    const parsedData = DataSchema.parse(data);
 
-    const mapData = new Map<string, Data[keyof Data]>(Object.entries(parsedData));
+    let parsedData: DataStore;
 
-    function set(key: keyof Data, value: Data[typeof key]) {
-      mapData.set(key, value);
+    try {
+      parsedData = DataStoreSchema.parse(data);
+    } catch (error) {
+      const legacyData = LegacySchema.parse(data);
+      parsedData = { groups: { legacy: legacyData } };
     }
 
-    function get(key: keyof Data): Data[typeof key] | undefined {
-      return mapData.get(key);
+    const mapData = new Map<string, SummaryData>(
+      Object.entries(parsedData.groups || {})
+    );
+
+    function setGroup(groupId: string, value: SummaryData) {
+      mapData.set(groupId, value);
     }
 
-    function has(key: keyof Data): boolean {
-      return mapData.has(key);
+    function getGroup(groupId: string): SummaryData {
+      return (
+        mapData.get(groupId) || {
+          summary: "",
+          opinions: [],
+        }
+      );
     }
 
-    function getAll(): Data {
-      return Object.fromEntries(mapData) as Data;
+    function hasGroup(groupId: string): boolean {
+      return mapData.has(groupId);
+    }
+
+    function getAllGroups(): Record<string, SummaryData> {
+      return Object.fromEntries(mapData) as Record<string, SummaryData>;
     }
 
     function save() {
-      const dataToSave = Object.fromEntries(mapData);
-      const isValid = DataSchema.safeParse(dataToSave);
+      const dataToSave = { groups: Object.fromEntries(mapData) };
+      const isValid = DataStoreSchema.safeParse(dataToSave);
 
       if (!isValid.success) {
         throw new Error("Data validation failed: " + JSON.stringify(isValid.error.errors));
       }
 
-      mapData.set("summary", dataToSave.summary || "");
-      mapData.set("opinions", dataToSave.opinions || []);
-      parsedData.summary = typeof dataToSave.summary === "string" ? dataToSave.summary : "";
-      parsedData.opinions = Array.isArray(dataToSave.opinions) ? dataToSave.opinions : [];
       fs.writeFileSync(file, JSON.stringify(dataToSave, null, 2));
     }
 
     return {
-      set,
-      get,
-      has,
-      getAll,
+      setGroup,
+      getGroup,
+      hasGroup,
+      getAllGroups,
       save,
     };
   } catch (error) {
-    const validData = {
-      summary: "",
-      opinions: [],
-    };
+    const validData = { groups: {} };
 
     fs.writeFileSync(file, JSON.stringify(validData, null, 2));
     return database();

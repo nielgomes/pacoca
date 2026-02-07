@@ -10,15 +10,46 @@ import analyzeImage from "./inteligence/analyzeImage";
 import { handleCommand } from "./managers/CommandManager";
 import { memory } from "./managers/MemoryManager"; 
 import { executeActions } from "./managers/ActionExecutor";
+import generateSummary from "./inteligence/generateSummary";
 
 
 export default async function rapy(whatsapp: Whatsapp) {
   const db = database();
+  const SUMMARY_IDLE_MS = 5 * 60 * 1000;
+  const SUMMARY_MIN_MESSAGES = 10;
+  const summaryTimers = new Map<string, NodeJS.Timeout>();
+
+  const scheduleSummary = (sessionId: string, messages: Message[]) => {
+      if (!sessionId.endsWith("@g.us")) return;
+      if (messages.length < SUMMARY_MIN_MESSAGES) return;
+
+      const existingTimer = summaryTimers.get(sessionId);
+      if (existingTimer) clearTimeout(existingTimer);
+
+      const timer = setTimeout(async () => {
+          try {
+              beautifulLogger.info("SUMARIO", `Gerando sumário para ${sessionId} após inatividade.`);
+              const groupData = db.getGroup(sessionId);
+              const summaryResult = await generateSummary(groupData, messages);
+
+              db.setGroup(sessionId, summaryResult);
+              db.save();
+
+              beautifulLogger.success("SUMARIO", `Sumário salvo para ${sessionId}.`);
+          } catch (error) {
+              beautifulLogger.error("SUMARIO", "Falha ao gerar/salvar sumário", error);
+          } finally {
+              summaryTimers.delete(sessionId);
+          }
+      }, SUMMARY_IDLE_MS);
+
+      summaryTimers.set(sessionId, timer);
+  };
 
   let recentMessageTimes: number[] = [];
 
 
-  const processResponse = async (sessionId: string, currentMessages: Message[], isGroup: boolean) => {
+    const processResponse = async (sessionId: string, currentMessages: Message[], isGroup: boolean) => {
       if (memory.isGenerating()) return;
 
       const lastMessageContent = currentMessages.at(-1)?.content?.toLowerCase() || "";
@@ -50,7 +81,8 @@ export default async function rapy(whatsapp: Whatsapp) {
 
       try {
         beautifulLogger.separator("VERIFICAÇÃO DE POSSIBILIDADE");
-        const { possible, reason } = await isPossibleResponse(db.getAll(), currentMessages);
+        const groupData = db.getGroup(sessionId);
+        const { possible, reason } = await isPossibleResponse(groupData, currentMessages);
         if (!possible) {
              beautifulLogger.warn("POSSIBILIDADE", "Resposta não é apropriada por: " + reason);
 
@@ -60,7 +92,7 @@ export default async function rapy(whatsapp: Whatsapp) {
         beautifulLogger.success("POSSIBILIDADE", "Resposta aprovada por: " + reason);
         await whatsapp.setTyping(sessionId);
 
-        const result = await generateResponse(db.getAll(), currentMessages, sessionId);
+        const result = await generateResponse(groupData, currentMessages, sessionId);
 
         beautifulLogger.separator("EXECUTANDO AÇÕES");
 
@@ -206,7 +238,11 @@ if (type === "audio" || type === "image") {
           ia: false,
       });
 
-      if (memory.isSilenced() || memory.isGenerating() || content.length > 300) return;
+      if (isGroup) {
+          scheduleSummary(sessionId, currentMessages);
+      }
+
+    if (memory.isSilenced() || memory.isGenerating() || content.length > 300) return;
 
       // CORREÇÃO: A chamada para mensagens de texto também passa os parâmetros
         if (isGroup) {
