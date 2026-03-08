@@ -48,6 +48,19 @@ export default async function rapy(whatsapp: Whatsapp) {
 
   let recentMessageTimes: number[] = [];
 
+  // Função para atualizar o histórico de mensagens do grupo
+  const updateGroupActivity = (sessionId: string) => {
+      if (!sessionId.endsWith("@g.us")) return;
+      
+      const now = Date.now();
+      recentMessageTimes.push(now);
+      
+      // Manter apenas as últimas 10 mensagens (2 minutos de histórico)
+      if (recentMessageTimes.length > 10) {
+          recentMessageTimes = recentMessageTimes.slice(-10);
+      }
+  };
+
 
     const processResponse = async (sessionId: string, currentMessages: Message[], isGroup: boolean) => {
       if (memory.isGenerating()) return;
@@ -124,6 +137,28 @@ export default async function rapy(whatsapp: Whatsapp) {
     };
 
     whatsapp.registerMessageHandler(async (sessionId, msg, type, senderInfo, mediaPath) => {
+        // ================================================================
+        // PROTEÇÃO: Ignorar mensagens do próprio bot
+        // ================================================================
+        if (msg.key.fromMe) {
+            beautifulLogger.info("MENSAGEM PRÓPRIA", "Ignorando mensagem do próprio bot");
+            return;
+        }
+        
+        // ================================================================
+        // PROTEÇÃO: Verificar se a mensagem já foi processada (duplicatas)
+        // ================================================================
+        const messageId = msg.key.id;
+        if (messageId) {
+            const processedId = memory.getMessageId(messageId);
+            if (processedId) {
+                beautifulLogger.warn("DUPLICATA", `Mensagem ${messageId} já processada, ignorando`);
+                return;
+            }
+            // Marcar como processada
+            memory.setMessageId(messageId, "processed");
+        }
+
         const isGroup = sessionId.endsWith('@g.us');
         const senderName = isGroup ? senderInfo?.name || "Desconhecido" : msg.pushName || "Desconhecido";
         const senderJid = isGroup ? senderInfo!.jid : sessionId;
@@ -238,7 +273,9 @@ if (type === "audio" || type === "image") {
           ia: false,
       });
 
+      // Atualizar o histórico de atividade do grupo para detecção de conversas ativas
       if (isGroup) {
+          updateGroupActivity(sessionId);
           scheduleSummary(sessionId, currentMessages);
       }
 

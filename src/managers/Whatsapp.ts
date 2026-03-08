@@ -162,6 +162,11 @@ for (const msg of messages) {
       const sessionId = msg.key.remoteJid;
       if (!sessionId) continue;
 
+      // PROTEÇÃO: Ignorar mensagens do próprio bot para evitar loops de resposta
+      if (msg.key.fromMe) {
+        continue;
+      }
+
       if (msg.key) {
         await this.sock!.readMessages([msg.key]);
       }
