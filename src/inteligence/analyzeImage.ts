@@ -1,48 +1,62 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { openai } from "../services/openai";
 import * as fs from "fs";
 import "dotenv/config";
+import { withRetry } from "../utils/retry";
+import config from '../utils/config';
+import models from '../../model.json';
 
-const geminiApiKey = process.env.GEMINI_API_KEY;
-if (!geminiApiKey) {
-  throw new Error("A variável de ambiente GEMINI_API_KEY não está definida.");
-}
-const genAI = new GoogleGenerativeAI(geminiApiKey);
-
-function fileToGenerativePart(path: string, mimeType: string) {
-  return {
-    inlineData: {
-      data: Buffer.from(fs.readFileSync(path)).toString("base64"),
-      mimeType,
-    },
-  };
+/**
+ * Converte um arquivo local em dados base64 para a API.
+ */
+function fileToBase64(path: string): string {
+    return Buffer.from(fs.readFileSync(path)).toString("base64");
 }
 
 /**
- * Envia uma imagem e um texto opcional para a API do Gemini para obter uma descrição.
- * @param imagePath O caminho para o arquivo de imagem local.
- * @param userText O texto que o usuário enviou junto com a imagem (legenda).
- * @returns Uma descrição da imagem em formato de texto.
+ * Envia uma imagem e um texto opcional para a API para obter uma descrição.
+ * Usa OpenRouter (Google Gemini) em vez da API direta do Google.
  */
 export default async function analyzeImage(imagePath: string, userText?: string): Promise<string> {
+    const imageBase64 = fileToBase64(imagePath);
+    const imageMimeType = "image/jpeg";
+
+    console.log(`🖼️ Analisando imagem: ${imagePath}`);
+
+    // Usar modelo do config via OpenRouter
+    const modelsData = models as Record<string, { MODEL_NAME: string }>;
+    const modelConfig = modelsData[config.MAIN_MODEL];
+    const MODEL_NAME = modelConfig.MODEL_NAME;
+
+    const prompt = `Sua tarefa é descrever o conteúdo de uma imagem de forma objetiva e concisa para que outra IA possa usar sua descrição para conversar sobre ela. Não faça elogios, análises subjetivas ou comentários sobre a qualidade. Apenas descreva os elementos visuais presentes. Se houver um texto do usuário junto com a imagem, use-o como contexto para sua descrição. Texto do usuário: "${userText || 'Nenhum'}"\n\nDescrição objetiva da imagem:`;
+
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
-        const imageMimeType = "image/jpeg"; // Assumindo jpeg, pode ser ajustado
+        const result = await withRetry(async () => {
+            return await openai.chat.completions.create({
+                model: MODEL_NAME,
+                messages: [
+                    {
+                        role: "user",
+                        content: [
+                            { type: "text", text: prompt },
+                            {
+                                type: "image_url",
+                                image_url: { url: `data:${imageMimeType};base64,${imageBase64}` },
+                            },
+                        ],
+                    },
+                ],
+                max_tokens: 1000,
+            }, {
+                timeout: 60 * 1000,
+            });
+        }, 3, 2000);
 
-        console.log(`🖼️ Analisando imagem: ${imagePath}`);
-
-        const imagePart = fileToGenerativePart(imagePath, imageMimeType);
-
-        const prompt = `Sua tarefa é descrever o conteúdo de uma imagem de forma objetiva e concisa para que outra IA possa usar sua descrição para conversar sobre ela. Não faça elogios, análises subjetivas ou comentários sobre a qualidade. Apenas descreva os elementos visuais presentes. Se houver um texto do usuário junto com a imagem, use-o como contexto para sua descrição. Texto do usuário: "${userText || 'Nenhum'}"\n\nDescrição objetiva da imagem:`;
-
-        const result = await model.generateContent([prompt, imagePart]);
-        const response = result.response;
-        const text = response.text();
-
-        console.log(`🎨 Descrição da Imagem do Gemini: "${text}"`);
+        const text = result.choices[0]?.message?.content || "<Erro ao processar a imagem>";
+        console.log(`🎨 Descrição da Imagem: "${text}"`);
         return text;
 
-    } catch (error) {
-        console.error("❌ Erro ao analisar imagem com Gemini:", error);
+    } catch (error: any) {
+        console.error("❌ Erro ao analisar imagem:", error.message || error);
         return "<Erro ao processar a imagem>";
     }
 }

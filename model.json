@@ -41,11 +41,18 @@
       "output": 0.50
     }
   },
-  "exp": {
-    "MODEL_NAME": "deepseek/deepseek-v3.2-exp",
+  "main": {
+    "MODEL_NAME": "deepseek/deepseek-v3.2",
     "MODEL_PRICING": {
-      "input": 0.27,
-      "output": 0.41
+      "input": 0.25,
+      "output": 0.40
+    }
+  },
+  "audio": {
+    "MODEL_NAME": "google/gemini-2.5-flash",
+    "MODEL_PRICING": {
+      "input": 0.30,
+      "output": 2.50
     }
   }
 }
