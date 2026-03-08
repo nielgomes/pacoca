@@ -24,7 +24,7 @@ export default async function analyzeImage(imagePath: string, userText?: string)
 
     // Usar modelo específico para visão (configurado em model.json)
     const modelsData = models as Record<string, { MODEL_NAME: string }>;
-    const visionModelConfig = modelsData["free"];
+    const visionModelConfig = modelsData["multimodal"];
     const MODEL_NAME = visionModelConfig.MODEL_NAME;
 
     const prompt = `Sua tarefa é descrever o conteúdo de uma imagem de forma objetiva e concisa para que outra IA possa usar sua descrição para conversar sobre ela. Não faça elogios, análises subjetivas ou comentários sobre a qualidade. Apenas descreva os elementos visuais presentes. Se houver um texto do usuário junto com a imagem, use-o como contexto para sua descrição. Texto do usuário: "${userText || 'Nenhum'}"\n\nDescrição objetiva da imagem:`;
