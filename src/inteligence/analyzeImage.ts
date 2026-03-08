@@ -36,19 +36,17 @@ export default async function analyzeImage(imagePath: string, userText?: string)
                 messages: [
                     {
                         role: "user",
-                        content: prompt,
+                        content: [
+                            { type: "text", text: prompt },
+                            {
+                                type: "image_url",
+                                image_url: {
+                                    url: `data:image/${imageFormat};base64,${imageBase64}`,
+                                },
+                            },
+                        ],
                     },
                 ],
-                // Usar extra_body para attachments (OpenRouter)
-                // @ts-ignore - attachments é campo específico do OpenRouter
-                extra_body: {
-                    attachments: [
-                        {
-                            type: `image/${imageFormat}`,
-                            data: imageBase64,
-                        },
-                    ],
-                },
                 max_tokens: 1000,
             }, {
                 timeout: 60 * 1000,
