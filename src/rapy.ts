@@ -11,6 +11,7 @@ import { handleCommand } from "./managers/CommandManager";
 import { memory } from "./managers/MemoryManager"; 
 import { executeActions } from "./managers/ActionExecutor";
 import generateSummary from "./inteligence/generateSummary";
+import DEFAULT_MESSAGES from "./constants/DEFAULT_MESSAGES";
 
 
 export default async function rapy(whatsapp: Whatsapp) {
@@ -65,7 +66,12 @@ export default async function rapy(whatsapp: Whatsapp) {
     const processResponse = async (sessionId: string, currentMessages: Message[], isGroup: boolean) => {
       if (memory.isGenerating()) return;
 
-      const lastMessageContent = currentMessages.at(-1)?.content?.toLowerCase() || "";
+      // Limpar mensagens antigas periodicamente para evitar vazamento de memória
+      memory.trimMessages();
+
+      // Usar alternativa ao .at() para compatibilidade
+      const lastMsg = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1] : null;
+      const lastMessageContent = lastMsg?.content?.toLowerCase() || "";
       const isRapyMentioned = lastMessageContent.includes("rapy") || lastMessageContent.includes("paçoca");
       const timeSinceLastResponse = Date.now() - memory.getLastResponseTime();
 
@@ -281,10 +287,11 @@ if (type === "audio" || type === "image") {
 
     if (memory.isSilenced() || memory.isGenerating() || content.length > 300) return;
 
-      // CORREÇÃO: A chamada para mensagens de texto também passa os parâmetros
+      // CORREÇÃO: Debounce por sessão para evitar race conditions entre grupos diferentes
         if (isGroup) {
             const getDebounceTime = () => 2000 + Math.random() * 2000;
-            debounce(() => processResponse(sessionId, currentMessages, isGroup), getDebounceTime(), "debounce-response");
+            // Usa sessionId no ID do debounce para cada grupo ter seu próprio timer
+            debounce(() => processResponse(sessionId, currentMessages, isGroup), getDebounceTime(), `debounce-response-${sessionId}`);
         } else {
             await processResponse(sessionId, currentMessages, isGroup);
         }

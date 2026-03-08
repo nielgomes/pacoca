@@ -33,7 +33,7 @@ const OFFLINE_DELAY_MS = 60_000;
 const RECONNECT_DELAY_S = 5;
 
 export default class Whatsapp {
-  private sock: WASocket | undefined;
+  public sock: WASocket | undefined;
   private onMessage?: MessageHandler;
   private presence: WAPresence = "available";
   // Adicionamos uma propriedade privada para armazenar o caminho da pasta temporária.

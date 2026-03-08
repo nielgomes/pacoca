@@ -8,6 +8,10 @@ import config from "../utils/config";
 import mediaCatalog from '../../media_catalog.json';
 import { Message, BotResponse, GenerateResponseResult, BotAction } from "./types";
 import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
+import { withRetry } from "../utils/retry";
+
+// Re-exporta para compatibilidade
+export { Message };
 
 
 // --- Carregamento Único de Mídia ---
@@ -189,13 +193,19 @@ export default async function generateResponse(
   sessionId: string
 ): Promise<GenerateResponseResult> {
   beautifulLogger.aiGeneration("start", "Iniciando geração de resposta...");
-  const messagesMaped = messages
+  
+  // Limite de mensagens para evitar custos excessivos e contexto muito longo
+  const MAX_MESSAGES_FOR_AI = 50;
+  const recentMessages = messages.slice(-MAX_MESSAGES_FOR_AI);
+  
+  const messagesMaped = recentMessages
     .map((message) => `${message.name}: ${message.content}`)
     .join("\n");
 
+  const lastMsg = recentMessages.length > 0 ? recentMessages[recentMessages.length - 1] : null;
   beautifulLogger.aiGeneration("processing", {
-    "mensagens processadas": messages.length,
-    "mensagem mais recente": messages.at(-1)?.content || "nenhuma",
+    "mensagens processadas": recentMessages.length,
+    "mensagem mais recente": lastMsg?.content || "nenhuma",
   });
 
   // Contexto de mídia e dados (permanecem iguais)
@@ -238,17 +248,19 @@ export default async function generateResponse(
   
   
 try {
-    // --- CHAMADA DA API COM FERRAMENTAS ---
-    const response = await openai.chat.completions.create({
-      model: MODEL_NAME,
-      messages: inputMessages,
-      tools: tools, // Enviamos a definição das ferramentas
-      tool_choice: "auto", // Deixamos a IA decidir se e qual ferramenta usar
-      temperature: 0.7, // Um pouco menos de temperatura pode ajudar com tool calling
-      max_tokens: 500, // Ajuste conforme necessário, mas tool calls são mais curtos
-    }, {
-      timeout: 45 * 1000, // Aumentar um pouco o timeout pode ser bom
-    });
+    // --- CHAMADA DA API COM FERRAMENTAS (com retry) ---
+    const response = await withRetry(async () => {
+      return await openai.chat.completions.create({
+        model: MODEL_NAME,
+        messages: inputMessages,
+        tools: tools,
+        tool_choice: "auto",
+        temperature: 0.7,
+        max_tokens: 500,
+      }, {
+        timeout: 45 * 1000,
+      });
+    }, 3, 1500); // 3 tentativas, delay progressivo: 1.5s, 3s, 6s
 
     const responseMessage = response.choices[0]?.message;
     if (!responseMessage) {

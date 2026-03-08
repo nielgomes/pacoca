@@ -1,6 +1,7 @@
 import path from "path";
+import fs from "fs/promises";
 import Whatsapp from "./Whatsapp";
-import { Message } from "../inteligence/generateResponse";
+import { Message } from "../inteligence/types";
 import { normalizeAndValidateJid } from "../utils/jid";
 import beautifulLogger from "../utils/beautifulLogger";
 import generateConversationStarter from "../inteligence/generateConversationStarter";
@@ -168,6 +169,20 @@ async function handlePesquisaCommand(content: string, { whatsapp, sessionId }: C
 async function handleSilencioCommand({ whatsapp, sessionId, currentMessages }: CommandContext) {
     beautifulLogger.info("COMANDO", "Comando '/silencio' recebido.");
     const stickerPath = path.join(getHomeDir(), "stickers", "silenciado.webp");
+    
+    // Verificar se o arquivo existe antes de enviar
+    try {
+        await fs.access(stickerPath);
+    } catch {
+        beautifulLogger.warn("COMANDO", "Sticker 'silenciado.webp' não encontrado, enviando texto apenas.");
+        await whatsapp.sendText(sessionId, DEFAULT_MESSAGES.SILENCED);
+        currentMessages.push({
+            content: `(Paçoca): ${DEFAULT_MESSAGES.SILENCED}`,
+            name: "Paçoca", jid: "", ia: true,
+        });
+        return;
+    }
+    
     await whatsapp.sendSticker(sessionId, stickerPath);
     currentMessages.push({
         content: `(Paçoca): <usou o sticker silenciado.webp>`,
@@ -186,12 +201,19 @@ async function handleSilencioCommand({ whatsapp, sessionId, currentMessages }: C
 async function handleLiberadoCommand({ whatsapp, sessionId, currentMessages }: CommandContext) {
     beautifulLogger.info("COMANDO", "Comando '/liberado' recebido.");
     const stickerPath = path.join(getHomeDir(), "stickers", "livre-para-falar.webp");
-    await whatsapp.sendSticker(sessionId, stickerPath);
-    currentMessages.push({
-        content: `(Paçoca): <usou o sticker livre-para-falar.webp>`,
-        name: "Paçoca", jid: "", ia: true,
-    });
-    beautifulLogger.actionSent("sticker", { arquivo: "livre-para-falar.webp" });
+    
+    // Verificar se o arquivo existe antes de enviar
+    try {
+        await fs.access(stickerPath);
+        await whatsapp.sendSticker(sessionId, stickerPath);
+        currentMessages.push({
+            content: `(Paçoca): <usou o sticker livre-para-falar.webp>`,
+            name: "Paçoca", jid: "", ia: true,
+        });
+        beautifulLogger.actionSent("sticker", { arquivo: "livre-para-falar.webp" });
+    } catch {
+        beautifulLogger.warn("COMANDO", "Sticker 'livre-para-falar.webp' não encontrado, enviando texto apenas.");
+    }
 
     await whatsapp.sendText(sessionId, DEFAULT_MESSAGES.UNSILENCED);
     currentMessages.push({

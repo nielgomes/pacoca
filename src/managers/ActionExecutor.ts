@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs/promises"; 
-import { BotResponse, Message } from "../inteligence/generateResponse";
+import { BotResponse, Message } from "../inteligence/types";
 import getHomeDir from "../utils/getHomeDir";
 import Whatsapp from "./Whatsapp";
 import beautifulLogger from "../utils/beautifulLogger";
@@ -77,6 +77,10 @@ export async function executeActions(response: BotResponse, context: ActionConte
                 await whatsapp.sendSticker(sessionId, stickerPath);
                 currentMessages.push({ content: `(Paçoca): <usou o sticker ${action.sticker}>`, name: "Paçoca", jid: "", ia: true });
                 beautifulLogger.actionSent("sticker", { arquivo: action.sticker });
+            } else {
+                // Log de erro silencioso corrigido - agora notifica o usuário
+                beautifulLogger.warn("STICKER", `Sticker '${action.sticker}' não encontrado, enviando mensagem de erro.`);
+                await whatsapp.sendText(sessionId, `Desculpe, não encontrei o sticker '${action.sticker}' 😢`);
             }
         } else if (action.audio) {
             const audioPath = await findMediaPath("audios", action.audio);
@@ -84,6 +88,9 @@ export async function executeActions(response: BotResponse, context: ActionConte
                 await whatsapp.sendAudio(sessionId, audioPath);
                 currentMessages.push({ content: `(Paçoca): <enviou o áudio ${action.audio}>`, name: "Paçoca", jid: "", ia: true });
                 beautifulLogger.actionSent("audio", { arquivo: action.audio });
+            } else {
+                beautifulLogger.warn("AUDIO", `Áudio '${action.audio}' não encontrado.`);
+                await whatsapp.sendText(sessionId, `Desculpe, não encontrei o áudio '${action.audio}' 🎵`);
             }
         } else if (action.meme) {
             const memePath = await findMediaPath("memes", action.meme);
@@ -91,6 +98,9 @@ export async function executeActions(response: BotResponse, context: ActionConte
                 await whatsapp.sendImage(sessionId, memePath);
                 currentMessages.push({ content: `(Paçoca): <enviou o meme ${action.meme}>`, name: "Paçoca", jid: "", ia: true });
                 beautifulLogger.actionSent("meme", { arquivo: action.meme });
+            } else {
+                beautifulLogger.warn("MEME", `Meme '${action.meme}' não encontrado.`);
+                await whatsapp.sendText(sessionId, `Desculpe, não encontrei o meme '${action.meme}' 🖼️`);
             }
         } else if (action.poll) {
             // Lógica para criar uma enquete

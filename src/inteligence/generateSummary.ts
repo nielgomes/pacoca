@@ -3,13 +3,8 @@ import { openai } from "../services/openai";
 import { SummaryData } from "../utils/database";
 import SUMMARY_PROMPT from "../constants/SUMMARY_PROMPT";
 import config from '../../model.json';
-
-export type Message = {
-  content: string;
-  name: string | undefined;
-  ia: boolean;
-  jid: string;
-}[];
+import { withRetry } from "../utils/retry";
+import { Message } from "./types";
 
 export type ResponseAction = {
   summary: string;
@@ -23,7 +18,7 @@ export type ResponseAction = {
 
 export default async function generateSummary(
   data: SummaryData,
-  messages: Message
+  messages: Message[]
 ): Promise<ResponseAction> {
   const messagesMaped: string = messages
     .map((message) => {
@@ -113,23 +108,25 @@ export default async function generateSummary(
 
   const contextData = formatDataForPrompt(data);
 
-  const response = await openai.chat.completions.create({
-    model: config.free.MODEL_NAME,
-    messages: [
-      { role: "system", content: SUMMARY_PROMPT },
-      {
-        role: "assistant",
-        content: `Resumo anterior (use ele como base para não perder dados.): ${data.summary}\n\nOpiniões já formadas dos usuários: ${contextData}`,
-      },
-      {
-        role: "user",
-        content: `Conversa: \n\n${messagesMaped}`,
-      },
-    ],
-    response_format: responseSchema,
-    temperature: 0.3,
-    max_tokens: 1000,
-  });
+  const response = await withRetry(async () => {
+    return await openai.chat.completions.create({
+      model: config.free.MODEL_NAME,
+      messages: [
+        { role: "system", content: SUMMARY_PROMPT },
+        {
+          role: "assistant",
+          content: `Resumo anterior (use ele como base para não perder dados.): ${data.summary}\n\nOpiniões já formadas dos usuários: ${contextData}`,
+        },
+        {
+          role: "user",
+          content: `Conversa: \n\n${messagesMaped}`,
+        },
+      ],
+      response_format: responseSchema,
+      temperature: 0.3,
+      max_tokens: 1000,
+    });
+  }, 3, 1000);
 
   const content = response.choices[0]?.message?.content;
 

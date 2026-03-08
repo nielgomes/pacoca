@@ -1,12 +1,14 @@
 import POSSIBLE_RESPONSE_PROMPT from "../constants/POSSIBLE_RESPONSE_PROMPT";
 import { openai } from "../services/openai";
 import { SummaryData } from "../utils/database";
-import { Message } from "./generateResponse";
+import { Message } from "./types";
 import config from '../../model.json';
+import { withRetry } from "../utils/retry";
 
-export default async function isPossibleResponse(data: SummaryData, messages: Message) {
-  const messagesMaped: string = messages
-    .slice(-30)
+export default async function isPossibleResponse(data: SummaryData, messages: Message[]) {
+  // Limita a 30 mensagens mais recentes para evitar custos excessivos
+  const recentMessages = messages.slice(-30);
+  const messagesMaped: string = recentMessages
     .map((message) => message.content)
     .join("\n");
 
@@ -63,22 +65,24 @@ export default async function isPossibleResponse(data: SummaryData, messages: Me
     },
   };
 
-  const response = await openai.chat.completions.create({
-    model: config.free.MODEL_NAME,
-    messages: [
-      { role: "system", content: POSSIBLE_RESPONSE_PROMPT },
-      {
-        role: "assistant",
-        content: `Opiniões já formadas dos usuários: ${contextData}`,
-      },
-      {
-        role: "user",
-        content: `Conversa: \n\n${messagesMaped}`
-      },
-    ],
-    response_format: responseSchema,
-    max_tokens: 30
-  });
+  const response = await withRetry(async () => {
+    return await openai.chat.completions.create({
+      model: config.free.MODEL_NAME,
+      messages: [
+        { role: "system", content: POSSIBLE_RESPONSE_PROMPT },
+        {
+          role: "assistant",
+          content: `Opiniões já formadas dos usuários: ${contextData}`,
+        },
+        {
+          role: "user",
+          content: `Conversa: \n\n${messagesMaped}`
+        },
+      ],
+      response_format: responseSchema,
+      max_tokens: 30
+    });
+  }, 3, 1000);
 
   const content = response.choices[0]?.message?.content;
 
