@@ -48,7 +48,7 @@
       "output": 0.40
     }
   },
-  "audio": {
+  "multimodal": {
     "MODEL_NAME": "google/gemini-2.5-flash",
     "MODEL_PRICING": {
       "input": 0.30,

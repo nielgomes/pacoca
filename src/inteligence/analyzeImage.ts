@@ -24,7 +24,7 @@ export default async function analyzeImage(imagePath: string, userText?: string)
 
     // Usar modelo do config via OpenRouter
     const modelsData = models as Record<string, { MODEL_NAME: string }>;
-    const modelConfig = modelsData[config.MAIN_MODEL];
+    const modelConfig = modelsData["free"];
     const MODEL_NAME = modelConfig.MODEL_NAME;
 
     const prompt = `Sua tarefa é descrever o conteúdo de uma imagem de forma objetiva e concisa para que outra IA possa usar sua descrição para conversar sobre ela. Não faça elogios, análises subjetivas ou comentários sobre a qualidade. Apenas descreva os elementos visuais presentes. Se houver um texto do usuário junto com a imagem, use-o como contexto para sua descrição. Texto do usuário: "${userText || 'Nenhum'}"\n\nDescrição objetiva da imagem:`;

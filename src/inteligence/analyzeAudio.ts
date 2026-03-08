@@ -22,10 +22,10 @@ export default async function analyzeAudio(audioPath: string): Promise<string> {
 
     console.log(`🎧 Analisando áudio: ${audioPath}`);
 
-    // Usar modelo do config via OpenRouter
+    // Usar modelo específico para áudio (configurado em model.json)
     const modelsData = models as Record<string, { MODEL_NAME: string }>;
-    const modelConfig = modelsData[config.MAIN_MODEL];
-    const MODEL_NAME = modelConfig.MODEL_NAME;
+    const audioModelConfig = modelsData["free"];
+    const MODEL_NAME = audioModelConfig.MODEL_NAME;
 
     const prompt = "Transcreva o áudio a seguir. Se o áudio estiver em outro idioma, transcreva no idioma original e depois forneça uma tradução para o português brasileiro entre parênteses. Se for apenas ruído ou música sem fala, retorne a string '<Música ou ruído ininteligível>'";
 
