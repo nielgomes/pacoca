@@ -14,11 +14,11 @@ function fileToBase64(path: string): string {
 
 /**
  * Envia um arquivo de áudio para a API para obter uma transcrição.
- * Usa OpenRouter (Google Gemini) em vez da API direta do Google.
+ * Usa OpenRouter com formato correto para áudio.
  */
 export default async function analyzeAudio(audioPath: string): Promise<string> {
     const audioBase64 = fileToBase64(audioPath);
-    const audioMimeType = "audio/ogg";
+    const audioFormat = "ogg"; // Formato do arquivo
 
     console.log(`🎧 Analisando áudio: ${audioPath}`);
 
@@ -39,8 +39,11 @@ export default async function analyzeAudio(audioPath: string): Promise<string> {
                         content: [
                             { type: "text", text: prompt },
                             {
-                                type: "audio",
-                                audio: { url: `data:${audioMimeType};base64,${audioBase64}` },
+                                type: "input_audio",
+                                input_audio: {
+                                    data: audioBase64,
+                                    format: audioFormat,
+                                },
                             },
                         ],
                     },

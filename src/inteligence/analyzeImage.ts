@@ -14,11 +14,11 @@ function fileToBase64(path: string): string {
 
 /**
  * Envia uma imagem e um texto opcional para a API para obter uma descrição.
- * Usa OpenRouter (Google Gemini) em vez da API direta do Google.
+ * Usa OpenRouter com formato correto de attachments para imagens.
  */
 export default async function analyzeImage(imagePath: string, userText?: string): Promise<string> {
     const imageBase64 = fileToBase64(imagePath);
-    const imageMimeType = "image/jpeg";
+    const imageFormat = "jpeg"; // ou png, webp, etc
 
     console.log(`🖼️ Analisando imagem: ${imagePath}`);
 
@@ -36,13 +36,14 @@ export default async function analyzeImage(imagePath: string, userText?: string)
                 messages: [
                     {
                         role: "user",
-                        content: [
-                            { type: "text", text: prompt },
-                            {
-                                type: "image_url",
-                                image_url: { url: `data:${imageMimeType};base64,${imageBase64}` },
-                            },
-                        ],
+                        content: prompt,
+                    },
+                ],
+                // Usar attachments para imagens (formato correto do OpenRouter)
+                attachments: [
+                    {
+                        type: `image/${imageFormat}`,
+                        data: imageBase64,
                     },
                 ],
                 max_tokens: 1000,
