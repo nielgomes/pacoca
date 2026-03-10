@@ -44,7 +44,10 @@ export async function handleCommand(content: string, context: CommandContext): P
             await handleSumarioCommand(content, context);
             return { commandHandled: true };
         case '/pesquisa':
-            await handlePesquisaCommand(content, context);
+            await handlePesquisaCommand(content, context, 'sonar_openrouter');
+            return { commandHandled: true };
+        case '/pesquisapro':
+            await handlePesquisaCommand(content, context, 'sonar_pro_openrouter');
             return { commandHandled: true };
         case '/silencio':
             await handleSilencioCommand(context);
@@ -151,14 +154,16 @@ async function handleSumarioCommand(content: string, { whatsapp, sessionId }: Co
     }
 }
 
-async function handlePesquisaCommand(content: string, { whatsapp, sessionId }: CommandContext) {
-    const searchTrigger = "/pesquisa ";
-    const query = content.substring(searchTrigger.length);
+async function handlePesquisaCommand(content: string, { whatsapp, sessionId }: CommandContext, modelKey: string = 'sonar_openrouter') {
+    const searchTrigger = "/pesquisa";
+    // Remove /pesquisa ou /pesquisapro da query
+    const query = content.replace(new RegExp(`^${searchTrigger}\\w*\\s*`), '').trim();
+    
     beautifulLogger.info("ORQUESTRADOR", `Agente de Pesquisa ativado com a query: "${query}"`);
 
     try {
         await whatsapp.sendText(sessionId, "🔎 Certo, pesquisando na internet sobre isso...");
-        const searchResult = await generateSearchResponse(query);
+        const searchResult = await generateSearchResponse(query, modelKey);
         await whatsapp.sendText(sessionId, searchResult);
     } catch (error) {
         beautifulLogger.error("AGENTE PESQUISADOR", "O agente falhou", error);

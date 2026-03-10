@@ -6,13 +6,6 @@
       "output": 0.1
     }
   },
-  "search": {
-    "MODEL_NAME": "perplexity/sonar",
-    "MODEL_PRICING": {
-      "input": 1.0,
-      "output": 1.0
-    }
-  },
   "free": {
     "MODEL_NAME": "google/gemini-2.5-flash-lite",
     "MODEL_PRICING": {
@@ -25,6 +18,20 @@
     "MODEL_PRICING": {
       "input": 0,
       "output": 0
+    }
+  },
+    "sonar_openrouter": {
+    "MODEL_NAME": "perplexity/sonar",
+    "MODEL_PRICING": {
+      "input": 1.0,
+      "output": 1.0
+    }
+  },
+    "sonar_pro_openrouter": {
+    "MODEL_NAME": "perplexity/sonar-pro",
+    "MODEL_PRICING": {
+      "input": 3.0,
+      "output": 15.0
     }
   },
   "nemo": {

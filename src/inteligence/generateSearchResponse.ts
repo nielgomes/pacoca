@@ -1,40 +1,32 @@
 // src/inteligence/generateSearchResponse.ts
 
-import OpenAI from "openai";
-import config from '../../model.json';
+import { openai } from "../services/openai";
+import models from '../../model.json';
 import beautifulLogger from "../utils/beautifulLogger";
 
-// Para uso com a API da Perplexity
-const perplexityApiKey = process.env.PERPLEXITY_API_KEY;
-
-// Cria um novo cliente de API, configurado especificamente para o Perplexity.
-const perplexityClient = new OpenAI({
-  baseURL: "https://api.perplexity.ai",
-  apiKey: perplexityApiKey,
-});
-
 /**
- * Remove o bloco <think>...</think> da resposta do Perplexity.
+ * Remove o bloco  da resposta.
  * @param rawContent A resposta bruta vinda da API.
  * @returns A resposta limpa, pronta para o usuário.
  */
-function parsePerplexityResponse(rawContent: string): string {
-  // Esta expressão regular encontra o bloco <think> e tudo que está dentro dele,
-  // incluindo múltiplas linhas, e o substitui por uma string vazia.
+function parseSearchResponse(rawContent: string): string {
   const cleanedContent = rawContent.replace(/<think>[\s\S]*?<\/think>\s*/, '');
-  return cleanedContent.trim(); // .trim() remove espaços em branco extras no início ou fim
+  return cleanedContent.trim();
 }
 
-export default async function generateSearchResponse(query: string) {
-  if (!perplexityApiKey) {
-    throw new Error("A chave de API do Perplexity (PERPLEXITY_API_KEY) não foi configurada.");
+export default async function generateSearchResponse(query: string, modelKey: string = 'sonar_openrouter') {
+  const modelsData = models as Record<string, { MODEL_NAME: string }>;
+  const modelConfig = modelsData[modelKey];
+  
+  if (!modelConfig) {
+    throw new Error(`Modelo '${modelKey}' não encontrado em model.json`);
   }
+  
+  const MODEL_NAME = modelConfig.MODEL_NAME;
+  beautifulLogger.info("AGENTE PESQUISADOR", `Usando o modelo: ${MODEL_NAME}`);
 
-  const modelConfig = config.perplexity; // Pega a configuração do agente de pesquisa da API Perplexity
-  beautifulLogger.info("AGENTE PESQUISADOR", `Usando o modelo: ${modelConfig.MODEL_NAME}`);
-
-  const response = await perplexityClient.chat.completions.create({
-    model: modelConfig.MODEL_NAME,
+  const response = await openai.chat.completions.create({
+    model: MODEL_NAME,
     messages: [
       { 
         role: "system", 
@@ -42,14 +34,14 @@ export default async function generateSearchResponse(query: string) {
       },
       { role: "user", content: query }
     ],
-    max_tokens: 2500, // Podemos dar um pouco mais de espaço para respostas de pesquisa
+    max_tokens: 2500,
   });
 
   const content = response.choices[0]?.message?.content;
   if (!content) {
-    throw new Error(`O agente de pesquisa ${modelConfig.MODEL_NAME} não retornou uma resposta.`);
+    throw new Error(`O agente de pesquisa ${MODEL_NAME} não retornou uma resposta.`);
   }
 
-  const cleanContent = parsePerplexityResponse(content);
+  const cleanContent = parseSearchResponse(content);
   return cleanContent;
 }
