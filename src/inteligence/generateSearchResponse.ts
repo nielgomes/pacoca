@@ -25,6 +25,13 @@ export default async function generateSearchResponse(query: string, modelKey: st
   const MODEL_NAME = modelConfig.MODEL_NAME;
   beautifulLogger.info("AGENTE PESQUISADOR", `Usando o modelo: ${MODEL_NAME}`);
 
+  // Configurar busca em tempo real
+  const isPro = modelKey.includes('pro');
+  const webSearchOptions = {
+    search_type: isPro ? "auto" : "fast",
+    search_context_size: 4000, // Limita contexto para respostas mais rápidas
+  };
+
   const response = await openai.chat.completions.create({
     model: MODEL_NAME,
     messages: [
@@ -34,6 +41,9 @@ export default async function generateSearchResponse(query: string, modelKey: st
       },
       { role: "user", content: query }
     ],
+    // @ts-ignore - web_search_options é específico do OpenRouter/Perplexity
+    web_search_options: webSearchOptions,
+    temperature: 0.3, // Menos criatividade para respostas mais precisas
     max_tokens: 2500,
   });
 
