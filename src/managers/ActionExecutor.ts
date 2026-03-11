@@ -145,6 +145,20 @@ export async function executeActions(response: BotResponse, context: ActionConte
               nome: action.contact.name,
               telefone: action.contact.cell,
             });
+        } else if (action.gif) {
+            // Lógica para enviar um GIF do Giphy
+            currentMessages.push({
+              content: `(Paçoca): <enviou um GIF: ${action.gif.title}>`,
+              name: "Paçoca",
+              jid: "",
+              ia: true,
+            });
+            // O WhatsApp pode enviar GIFs como imagens animadas
+            await whatsapp.sendImage(sessionId, action.gif.url);
+            beautifulLogger.actionSent("gif", {
+              titulo: action.gif.title,
+              url: action.gif.url,
+            });
       } 
     }
 }

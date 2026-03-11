@@ -301,15 +301,27 @@ for (const msg of messages) {
     });
   }
 
-  async sendImage(jid: string, filePath: string) {
+  async sendImage(jid: string, filePathOrUrl: string) {
     if (!this.sock) throw new Error("Não conectado");
 
     try {
-      const imageBuffer = fs.readFileSync(filePath);
-      await this.sock.sendMessage(jid, {
-        image: imageBuffer,
-        mimetype: "image/jpeg",
-      });
+      // Verificar se é uma URL (http/https) ou um arquivo local
+      const isUrl = filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://');
+      
+      if (isUrl) {
+        // Enviar por URL (para GIFs do Giphy)
+        await this.sock.sendMessage(jid, {
+          image: { url: filePathOrUrl },
+          mimetype: "image/gif", // GIF precisa de mimetype específico
+        });
+      } else {
+        // Enviar arquivo local (para memes e stickers)
+        const imageBuffer = fs.readFileSync(filePathOrUrl);
+        await this.sock.sendMessage(jid, {
+          image: imageBuffer,
+          mimetype: "image/jpeg",
+        });
+      }
     } catch (error) {
       console.error("Erro ao enviar imagem:", error);
       throw error;

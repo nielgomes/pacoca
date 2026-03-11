@@ -6,7 +6,7 @@ export interface Message {
 }
 
 export interface BotAction {
-  type: 'message' | 'sticker' | 'audio' | 'meme' | 'poll' | 'location' | 'contact';
+  type: 'message' | 'sticker' | 'audio' | 'meme' | 'poll' | 'location' | 'contact' | 'gif';
   message?: {
     text: string;
     reply?: string;
@@ -25,6 +25,12 @@ export interface BotAction {
   contact?: {
     name: string;
     cell: string;
+  };
+  gif?: {
+    url: string;           // URL do GIF para download/envio
+    title: string;         // Título do GIF
+    altText: string;       // Descrição alternativa
+    pageUrl: string;       // URL da página do Giphy
   };
 }
 

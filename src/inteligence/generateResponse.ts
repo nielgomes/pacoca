@@ -9,6 +9,7 @@ import mediaCatalog from '../../media_catalog.json';
 import { Message, BotResponse, GenerateResponseResult, BotAction } from "./types";
 import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
 import { withRetry } from "../utils/retry";
+import { searchGifs, pickRandomGif, pickRandomGifs, getBestGifUrl, GiphyGif } from "../services/giphy";
 
 // Re-exporta para compatibilidade
 export { Message };
@@ -184,6 +185,29 @@ const tools: ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "send_gif",
+      description: "Busca e envia um GIF do Giphy. Use quando quiser enviar um GIF online. A ferramenta busca GIFs automaticamente, então você só precisa passar o tema/conceito do GIF desejado.",
+      parameters: {
+        type: "object",
+        properties: {
+          search_query: {
+            type: "string",
+            description: "O termo ou tema para buscar o GIF (ex: 'feliz aniversário', 'parabéns', 'risada', 'paixão', 'triste', 'flamengo'). Use termos em português ou inglês.",
+          },
+          quantity: {
+            type: "number",
+            description: "Quantos GIFs buscar (1 a 5). Se 1, envia um GIF aleatório dos resultados. Se mais, você receberá uma lista e poderá escolher qual enviar.",
+            minimum: 1,
+            maximum: 5,
+          },
+        },
+        required: ["search_query"],
+      },
+    },
+  },
 ];
 
 
@@ -340,6 +364,56 @@ try {
            finalActions.push({ type: 'location', location: { latitude: functionArgs.latitude, longitude: functionArgs.longitude } });
         } else if (functionName === 'send_contact' && functionArgs.cell && functionArgs.name) {
            finalActions.push({ type: 'contact', contact: { name: functionArgs.name, cell: functionArgs.cell } });
+        } else if (functionName === 'send_gif' && functionArgs.search_query) {
+          // Processar busca de GIF
+          const quantity = Math.min(Math.max(functionArgs.quantity || 1, 1), 5);
+          const searchQuery = functionArgs.search_query;
+          
+          beautifulLogger.info("GIF", `Buscando GIFs para: "${searchQuery}" (quantidade: ${quantity})`);
+          
+          const gifs = await searchGifs(searchQuery, 5, "g", "pt");
+          
+          if (gifs && gifs.length > 0) {
+            if (quantity === 1) {
+              // Se pediu 1 GIF, escolhe aleatoriamente e adiciona diretamente
+              const selectedGif = pickRandomGif(gifs);
+              if (selectedGif) {
+                finalActions.push({
+                  type: 'gif',
+                  gif: {
+                    url: getBestGifUrl(selectedGif),
+                    title: selectedGif.title,
+                    altText: selectedGif.alt_text || selectedGif.title,
+                    pageUrl: selectedGif.url,
+                  },
+                });
+                beautifulLogger.actionSent("gif", { 
+                  titulo: selectedGif.title, 
+                  query: searchQuery 
+                });
+              }
+            } else {
+              // Se pediu mais de 1 GIF, seleciona múltiplos aleatórios
+              const selectedGifs = pickRandomGifs(gifs, quantity);
+              for (const gif of selectedGifs) {
+                finalActions.push({
+                  type: 'gif',
+                  gif: {
+                    url: getBestGifUrl(gif),
+                    title: gif.title,
+                    altText: gif.alt_text || gif.title,
+                    pageUrl: gif.url,
+                  },
+                });
+              }
+              beautifulLogger.actionSent("gif", { 
+                quantidade: selectedGifs.length, 
+                query: searchQuery 
+              });
+            }
+          } else {
+            beautifulLogger.warn("GIF", `Nenhum GIF encontrado para: "${searchQuery}"`);
+          }
         } else {
             beautifulLogger.warn("TOOL_CALL_UNKNOWN", `IA chamou uma ferramenta desconhecida ou com argumentos inválidos: ${functionName}`);
         }
