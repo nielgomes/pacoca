@@ -313,23 +313,25 @@ for (const msg of messages) {
         const isGif = filePathOrUrl.toLowerCase().includes('.gif') || filePathOrUrl.includes('giphy');
         
         if (isGif) {
-          // Para GIFs, precisamos baixar primeiro e enviar como arquivo local
-          // Isso evita problemas com o Baileys ao processar URLs de GIF
+          // Para GIFs animados, o WhatsApp precisa receber como vídeo com flag de GIF
+          // Isso garante que o GIF seja animado quando enviado
           try {
             const response = await fetch(filePathOrUrl);
             const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
             
             await this.sock.sendMessage(jid, {
-              image: buffer,
+              video: buffer,
               mimetype: "image/gif",
+              gif: true, // Flag importante para manter animação
             });
           } catch (downloadError) {
             console.error("Erro ao baixar GIF, tentando enviar como URL:", downloadError);
             // Fallback: tentar enviar como URL direta
             await this.sock.sendMessage(jid, {
-              image: { url: filePathOrUrl },
+              video: { url: filePathOrUrl },
               mimetype: "image/gif",
+              gif: true,
             });
           }
         } else {
@@ -340,12 +342,25 @@ for (const msg of messages) {
           });
         }
       } else {
-        // Enviar arquivo local (para memes e stickers)
-        const imageBuffer = fs.readFileSync(filePathOrUrl);
-        await this.sock.sendMessage(jid, {
-          image: imageBuffer,
-          mimetype: "image/jpeg",
-        });
+        // Verificar se é GIF pelo nome do arquivo
+        const isGif = filePathOrUrl.toLowerCase().includes('.gif');
+        
+        if (isGif) {
+          // Enviar GIF local como vídeo com flag de animação
+          const imageBuffer = fs.readFileSync(filePathOrUrl);
+          await this.sock.sendMessage(jid, {
+            video: imageBuffer,
+            mimetype: "image/gif",
+            gif: true,
+          });
+        } else {
+          // Enviar arquivo local (para memes e stickers)
+          const imageBuffer = fs.readFileSync(filePathOrUrl);
+          await this.sock.sendMessage(jid, {
+            image: imageBuffer,
+            mimetype: "image/jpeg",
+          });
+        }
       }
     } catch (error) {
       console.error("Erro ao enviar imagem:", error);
