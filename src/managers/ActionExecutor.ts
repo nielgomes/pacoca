@@ -147,14 +147,26 @@ export async function executeActions(response: BotResponse, context: ActionConte
             });
         } else if (action.gif) {
             // Lógica para enviar um GIF do Giphy
+            console.log(`🕵️ DEBUG [GIF]: Preparando para enviar GIF: "${action.gif.title}"`);
+            console.log(`🕵️ DEBUG [GIF]: URL: ${action.gif.url}`);
+            
             currentMessages.push({
               content: `(Paçoca): <enviou um GIF: ${action.gif.title}>`,
               name: "Paçoca",
               jid: "",
               ia: true,
             });
+            
             // O WhatsApp pode enviar GIFs como imagens animadas
-            await whatsapp.sendImage(sessionId, action.gif.url);
+            try {
+              await whatsapp.sendImage(sessionId, action.gif.url);
+              console.log(`🕵️ DEBUG [GIF]: GIF enviado com sucesso!`);
+            } catch (gifError) {
+              console.error(`🕵️ DEBUG [GIF]: Erro ao enviar GIF:`, gifError);
+              // Tentar enviar como mensagem de fallback
+              await whatsapp.sendText(sessionId, `Olha só que gif legal que achei: ${action.gif.pageUrl}`);
+            }
+            
             beautifulLogger.actionSent("gif", {
               titulo: action.gif.title,
               url: action.gif.url,

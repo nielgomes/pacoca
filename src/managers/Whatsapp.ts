@@ -309,11 +309,36 @@ for (const msg of messages) {
       const isUrl = filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://');
       
       if (isUrl) {
-        // Enviar por URL (para GIFs do Giphy)
-        await this.sock.sendMessage(jid, {
-          image: { url: filePathOrUrl },
-          mimetype: "image/gif", // GIF precisa de mimetype específico
-        });
+        // Verificar se é um GIF pela extensão ou pelo mimetype
+        const isGif = filePathOrUrl.toLowerCase().includes('.gif') || filePathOrUrl.includes('giphy');
+        
+        if (isGif) {
+          // Para GIFs, precisamos baixar primeiro e enviar como arquivo local
+          // Isso evita problemas com o Baileys ao processar URLs de GIF
+          try {
+            const response = await fetch(filePathOrUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            
+            await this.sock.sendMessage(jid, {
+              image: buffer,
+              mimetype: "image/gif",
+            });
+          } catch (downloadError) {
+            console.error("Erro ao baixar GIF, tentando enviar como URL:", downloadError);
+            // Fallback: tentar enviar como URL direta
+            await this.sock.sendMessage(jid, {
+              image: { url: filePathOrUrl },
+              mimetype: "image/gif",
+            });
+          }
+        } else {
+          // Para imagens normais, enviar por URL
+          await this.sock.sendMessage(jid, {
+            image: { url: filePathOrUrl },
+            mimetype: "image/jpeg",
+          });
+        }
       } else {
         // Enviar arquivo local (para memes e stickers)
         const imageBuffer = fs.readFileSync(filePathOrUrl);
