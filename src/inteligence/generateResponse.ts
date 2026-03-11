@@ -9,7 +9,7 @@ import mediaCatalog from '../../media_catalog.json';
 import { Message, BotResponse, GenerateResponseResult, BotAction } from "./types";
 import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
 import { withRetry } from "../utils/retry";
-import { searchGifs, pickRandomGif, pickRandomGifs, getBestGifUrl, GiphyGif } from "../services/giphy";
+import { searchGifs, pickRandomGif, pickRandomGifs, getBestGifUrl, getBestGifMp4Url, GiphyGif } from "../services/giphy";
 
 // Re-exporta para compatibilidade
 export { Message };
@@ -378,31 +378,42 @@ try {
               // Se pediu 1 GIF, escolhe aleatoriamente e adiciona diretamente
               const selectedGif = pickRandomGif(gifs);
               if (selectedGif) {
+                // Preferir MP4 para WhatsApp, senão usar URL do GIF
+                const mp4Url = getBestGifMp4Url(selectedGif);
+                const finalUrl = mp4Url || getBestGifUrl(selectedGif);
+                
                 finalActions.push({
                   type: 'gif',
                   gif: {
-                    url: getBestGifUrl(selectedGif),
+                    url: finalUrl,
                     title: selectedGif.title,
                     altText: selectedGif.alt_text || selectedGif.title,
                     pageUrl: selectedGif.url,
+                    isMp4: !!mp4Url, // Flag para indicar se é MP4
                   },
                 });
                 beautifulLogger.actionSent("gif", { 
                   titulo: selectedGif.title, 
-                  query: searchQuery 
+                  query: searchQuery,
+                  tipo: mp4Url ? "mp4" : "gif"
                 });
               }
             } else {
               // Se pediu mais de 1 GIF, seleciona múltiplos aleatórios
               const selectedGifs = pickRandomGifs(gifs, quantity);
               for (const gif of selectedGifs) {
+                // Preferir MP4 para WhatsApp, senão usar URL do GIF
+                const mp4Url = getBestGifMp4Url(gif);
+                const finalUrl = mp4Url || getBestGifUrl(gif);
+                
                 finalActions.push({
                   type: 'gif',
                   gif: {
-                    url: getBestGifUrl(gif),
+                    url: finalUrl,
                     title: gif.title,
                     altText: gif.alt_text || gif.title,
                     pageUrl: gif.url,
+                    isMp4: !!mp4Url,
                   },
                 });
               }

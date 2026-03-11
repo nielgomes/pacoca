@@ -56,6 +56,7 @@ export interface GiphyGif {
       width: string;
       height: string;
       size: string;
+      mp4?: string; // Opcional - algumas versões podem ter
     };
     downsized_medium: {
       url: string;
@@ -328,17 +329,29 @@ export function getBestGifUrl(gif: GiphyGif): string {
 }
 
 /**
- * Obtém a URL em MP4 do GIF (para possível uso futuro com video)
+ * Obtém a melhor URL em MP4 do GIF para envio no WhatsApp
+ * Preferência: fixed_height_small (menor tamanho, ideal para mobile)
  * @param gif O GIF do qual obter a URL
- * @returns URL do MP4 ou null
+ * @returns URL do MP4 otimizado para WhatsApp ou null
  */
-export function getGifMp4Url(gif: GiphyGif): string | null {
+export function getBestGifMp4Url(gif: GiphyGif): string | null {
+  // Tentar primeiro fixed_height_small (bom para WhatsApp)
   if (gif.images.fixed_height_small?.mp4) {
     return gif.images.fixed_height_small.mp4;
   }
+  // Fallback para fixed_width_small
+  if (gif.images.fixed_width_small?.mp4) {
+    return gif.images.fixed_width_small.mp4;
+  }
+  // Fallback para downsized_small
+  if (gif.images.downsized_small?.mp4) {
+    return gif.images.downsized_small.mp4;
+  }
+  // Fallback para fixed_height
   if (gif.images.fixed_height?.mp4) {
     return gif.images.fixed_height.mp4;
   }
+  // Fallback final: original
   if (gif.images.original?.mp4) {
     return gif.images.original.mp4;
   }

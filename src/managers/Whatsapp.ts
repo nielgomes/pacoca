@@ -368,6 +368,46 @@ for (const msg of messages) {
     }
   }
 
+  /**
+   * Envia um GIF animado para o WhatsApp
+   * O WhatsApp requer MP4 com gifPlayback: true para GIFs animados
+   * @param jid O ID do chat
+   * @param url URL do GIF/MP4
+   * @param isMp4 Indica se a URL é um arquivo MP4
+   */
+  async sendGif(jid: string, url: string, isMp4: boolean = false) {
+    if (!this.sock) throw new Error("Não conectado");
+
+    try {
+      console.log(`🕵️ DEBUG [Whatsapp.sendGif]: Enviando GIF/MP4 para ${jid}`);
+      console.log(`🕵️ DEBUG [Whatsapp.sendGif]: URL: ${url}`);
+      console.log(`🕵️ DEBUG [Whatsapp.sendGif]: isMp4: ${isMp4}`);
+
+      // Baixar o conteúdo primeiro
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Falha ao baixar: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      console.log(`🕵️ DEBUG [Whatsapp.sendGif]: Buffer criado, tamanho: ${buffer.length} bytes`);
+
+      // Enviar como vídeo com gifPlayback: true
+      await this.sock.sendMessage(jid, {
+        video: buffer,
+        mimetype: isMp4 ? "video/mp4" : "image/gif",
+        gifPlayback: true, // Flag oficial do Baileys para GIF animado
+      });
+      
+      console.log(`🕵️ DEBUG [Whatsapp.sendGif]: GIF enviado com sucesso!`);
+    } catch (error) {
+      console.error("🕵️ DEBUG [Whatsapp.sendGif]: Erro ao enviar GIF:", error);
+      throw error;
+    }
+  }
+
   async sendAudio(jid: string, filePath: string) {
     if (!this.sock) throw new Error("Não conectado");
     await this.sock.sendMessage(jid, {

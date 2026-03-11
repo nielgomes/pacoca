@@ -149,6 +149,7 @@ export async function executeActions(response: BotResponse, context: ActionConte
             // Lógica para enviar um GIF do Giphy
             console.log(`🕵️ DEBUG [GIF]: Preparando para enviar GIF: "${action.gif.title}"`);
             console.log(`🕵️ DEBUG [GIF]: URL: ${action.gif.url}`);
+            console.log(`🕵️ DEBUG [GIF]: É MP4: ${action.gif.isMp4}`);
             
             currentMessages.push({
               content: `(Paçoca): <enviou um GIF: ${action.gif.title}>`,
@@ -157,9 +158,9 @@ export async function executeActions(response: BotResponse, context: ActionConte
               ia: true,
             });
             
-            // O WhatsApp pode enviar GIFs como imagens animadas
+            // O WhatsApp precisa de MP4 com gifPlayback para GIFs animados
             try {
-              await whatsapp.sendImage(sessionId, action.gif.url);
+              await whatsapp.sendGif(sessionId, action.gif.url, action.gif.isMp4);
               console.log(`🕵️ DEBUG [GIF]: GIF enviado com sucesso!`);
             } catch (gifError) {
               console.error(`🕵️ DEBUG [GIF]: Erro ao enviar GIF:`, gifError);

@@ -27,10 +27,11 @@ export interface BotAction {
     cell: string;
   };
   gif?: {
-    url: string;           // URL do GIF para download/envio
+    url: string;           // URL do GIF/MP4 para download/envio
     title: string;         // Título do GIF
     altText: string;       // Descrição alternativa
     pageUrl: string;       // URL da página do Giphy
+    isMp4?: boolean;       // Flag indicando se é um vídeo MP4 (para WhatsApp)
   };
 }
 
