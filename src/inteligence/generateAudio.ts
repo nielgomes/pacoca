@@ -50,24 +50,37 @@ export interface AudioGenerationResult {
   transcript: string;
   /** Caminho do arquivo de áudio gerado */
   audioPath: string;
-  /** Caminho do arquivo de áudio convertido (mp3) */
-  audioPathMp3?: string;
+  /** Caminho do arquivo de áudio convertido (ogg/opus) */
+  audioPathOgg?: string;
   /** Tamanho do arquivo em bytes */
   fileSize: number;
-  /** Tamanho do MP3 em bytes (se convertido) */
-  fileSizeMp3?: number;
+  /** Tamanho do OGG em bytes (se convertido) */
+  fileSizeOgg?: number;
 }
 
 /**
- * Converte WAV PCM16 para MP3 usando ffmpeg-static
+ * Converte WAV PCM16 para OGG/Opus usando ffmpeg-static
  */
-async function convertWavToMp3(inputPath: string, outputPath: string): Promise<void> {
+async function convertWavToOggOpus(inputPath: string, outputPath: string): Promise<void> {
   if (!ffmpegPath) {
     throw new Error("ffmpeg não encontrado (ffmpeg-static)");
   }
 
   await new Promise<void>((resolve, reject) => {
-    const args = ["-y", "-i", inputPath, "-codec:a", "libmp3lame", "-b:a", "128k", outputPath];
+    const args = [
+      "-y",
+      "-i",
+      inputPath,
+      "-codec:a",
+      "libopus",
+      "-b:a",
+      "48k",
+      "-ar",
+      "48000",
+      "-ac",
+      "1",
+      outputPath,
+    ];
     const proc = spawn(ffmpegPath, args, { stdio: "ignore" });
 
     proc.on("error", (err) => reject(err));
@@ -295,15 +308,15 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     // Salva o arquivo de áudio WAV
     await fs.writeFile(audioPath, wavBuffer);
 
-    // Converte para MP3 para melhor compatibilidade com WhatsApp
-    const mp3FileName = `pacoca_audio_${timestamp}.mp3`;
-    const mp3Path = path.join(audioDir, mp3FileName);
-    let mp3Size: number | undefined;
+    // Converte para OGG/Opus para melhor compatibilidade com WhatsApp
+    const oggFileName = `pacoca_audio_${timestamp}.ogg`;
+    const oggPath = path.join(audioDir, oggFileName);
+    let oggSize: number | undefined;
 
     try {
-      await convertWavToMp3(audioPath, mp3Path);
-      const mp3Stats = await fs.stat(mp3Path);
-      mp3Size = mp3Stats.size;
+      await convertWavToOggOpus(audioPath, oggPath);
+      const oggStats = await fs.stat(oggPath);
+      oggSize = oggStats.size;
     } catch (convertError: any) {
       beautifulLogger.error("AUDIO_CONVERT", "Falha ao converter WAV para MP3", {
         error: convertError.message,
@@ -314,16 +327,16 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
       transcript: transcript.substring(0, 100) + (transcript.length > 100 ? "..." : ""),
       fileSize: wavBuffer.length,
       filePath: audioPath,
-      mp3Path: mp3Size ? mp3Path : undefined,
-      mp3Size,
+      oggPath: oggSize ? oggPath : undefined,
+      oggSize,
     });
 
     return {
       transcript,
       audioPath,
-      audioPathMp3: mp3Size ? mp3Path : undefined,
+      audioPathOgg: oggSize ? oggPath : undefined,
       fileSize: wavBuffer.length,
-      fileSizeMp3: mp3Size,
+      fileSizeOgg: oggSize,
     };
 
   } catch (error: any) {
