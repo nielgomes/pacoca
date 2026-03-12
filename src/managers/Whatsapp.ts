@@ -424,7 +424,8 @@ export default class Whatsapp {
       
       const messageOptions: any = {
         audio: audioBuffer,
-        ptt: true, // Enviar como nota de voz
+        // WAV como nota de voz costuma falhar em alguns clientes; enviar como áudio normal
+        ptt: isWav ? false : true,
         mimetype: mimetype,
       };
       
@@ -436,7 +437,10 @@ export default class Whatsapp {
         };
       }
       
-      await this.sock.sendMessage(jid, messageOptions);
+      const result = await this.sock.sendMessage(jid, messageOptions);
+      if (!result?.key?.id) {
+        throw new Error("Envio de áudio retornou sem message id (possível falha silenciosa)");
+      }
       console.log("🕵️ DEBUG [sendAudio]: Áudio enviado com buffer, tamanho:", audioBuffer.length);
     } catch (audioError) {
       console.error("🕵️ DEBUG [sendAudio]: Erro ao enviar áudio:", audioError);
