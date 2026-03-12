@@ -9,6 +9,9 @@
  * 
  * Usa fetch direto pois o SDK openai não suporta modalities/audio quando
  * apontado para OpenRouter.
+ * 
+ * Nota: Com stream: true, o formato deve ser "pcm16" (não "wav"), e depois
+ * convertemos para WAV com o header correto para o WhatsApp.
  */
 import AUDIO_PERSONALITY_PROMPT, { AUDIO_VOICE_CONFIG } from "../constants/AUDIO_PERSONALITY_PROMPT";
 import beautifulLogger from "../utils/beautifulLogger";
@@ -17,6 +20,40 @@ import models from "../../model.json";
 import path from "path";
 import fs from "fs/promises";
 import getHomeDir from "../utils/getHomeDir";
+
+/**
+ * Adiciona header WAV a dados PCM16 para criar arquivo WAV válido
+ * @param pcmData Buffer com dados PCM16
+ * @param sampleRate Taxa de amostragem (padrão 24000 para gpt-audio-mini)
+ * @param numChannels Número de canais (1 = mono)
+ * @param bitsPerSample Bits por amostra (16)
+ */
+function createWavBuffer(pcmData: Buffer, sampleRate: number = 24000, numChannels: number = 1, bitsPerSample: number = 16): Buffer {
+  const dataSize = pcmData.length;
+  const buffer = Buffer.alloc(44 + dataSize);
+  
+  // RIFF header
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write("WAVE", 8);
+  
+  // fmt chunk
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16); // chunk size
+  buffer.writeUInt16LE(1, 20); // audio format (PCM)
+  buffer.writeUInt16LE(numChannels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * numChannels * (bitsPerSample / 8), 28); // byte rate
+  buffer.writeUInt16LE(numChannels * (bitsPerSample / 8), 32); // block align
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  
+  // data chunk
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(dataSize, 40);
+  pcmData.copy(buffer, 44);
+  
+  return buffer;
+}
 
 /**
  * Resultado da geração de áudio
@@ -109,7 +146,7 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
         modalities: ["text", "audio"],
         audio: {
           voice: AUDIO_VOICE_CONFIG.DEFAULT_VOICE,
-          format: AUDIO_VOICE_CONFIG.DEFAULT_FORMAT,
+          format: "pcm16", // PCM16 é obrigatório com stream: true
         },
         temperature: AUDIO_VOICE_CONFIG.TEMPERATURE,
         top_p: AUDIO_VOICE_CONFIG.TOP_P,
@@ -165,13 +202,16 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
       throw new Error("Nenhum áudio foi gerado pela API");
     }
 
-    // Decodifica os chunks de áudio
+    // Decodifica os chunks de áudio PCM16
     const fullAudioBase64 = audioChunks.join("");
-    const audioBytes = Buffer.from(fullAudioBase64, "base64");
+    const pcmBuffer = Buffer.from(fullAudioBase64, "base64");
+
+    // Converte PCM16 para WAV (adiciona header WAV)
+    const wavBuffer = createWavBuffer(pcmBuffer, 24000, 1, 16);
 
     // Gera um nome de arquivo único
     const timestamp = Date.now();
-    const audioFileName = `pacoca_audio_${timestamp}.${AUDIO_VOICE_CONFIG.DEFAULT_FORMAT}`;
+    const audioFileName = `pacoca_audio_${timestamp}.wav`;
     const audioDir = path.join(getHomeDir(), "whatsapp_session", "temp");
     
     // Garante que o diretório existe
@@ -179,19 +219,19 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     
     const audioPath = path.join(audioDir, audioFileName);
     
-    // Salva o arquivo de áudio
-    await fs.writeFile(audioPath, audioBytes);
+    // Salva o arquivo de áudio WAV
+    await fs.writeFile(audioPath, wavBuffer);
 
     beautifulLogger.aiGeneration("audio", {
       transcript: transcript.substring(0, 100) + (transcript.length > 100 ? "..." : ""),
-      fileSize: audioBytes.length,
+      fileSize: wavBuffer.length,
       filePath: audioPath,
     });
 
     return {
       transcript,
       audioPath,
-      fileSize: audioBytes.length,
+      fileSize: wavBuffer.length,
     };
 
   } catch (error: any) {
