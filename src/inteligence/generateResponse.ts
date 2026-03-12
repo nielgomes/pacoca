@@ -479,7 +479,7 @@ try {
           finalActions[0] = {
             type: 'generated_audio',
             generatedAudio: {
-              path: audioResult.audioPath,
+              path: audioResult.audioPathMp3 || audioResult.audioPath,
               transcript: audioResult.transcript,
               reply: replyTo,
             },

@@ -18,6 +18,8 @@ import models from "../../model.json";
 import path from "path";
 import fs from "fs/promises";
 import getHomeDir from "../utils/getHomeDir";
+import { spawn } from "child_process";
+import ffmpegPath from "ffmpeg-static";
 
 /**
  * Cria header WAV para dados PCM16
@@ -48,8 +50,32 @@ export interface AudioGenerationResult {
   transcript: string;
   /** Caminho do arquivo de áudio gerado */
   audioPath: string;
+  /** Caminho do arquivo de áudio convertido (mp3) */
+  audioPathMp3?: string;
   /** Tamanho do arquivo em bytes */
   fileSize: number;
+  /** Tamanho do MP3 em bytes (se convertido) */
+  fileSizeMp3?: number;
+}
+
+/**
+ * Converte WAV PCM16 para MP3 usando ffmpeg-static
+ */
+async function convertWavToMp3(inputPath: string, outputPath: string): Promise<void> {
+  if (!ffmpegPath) {
+    throw new Error("ffmpeg não encontrado (ffmpeg-static)");
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const args = ["-y", "-i", inputPath, "-codec:a", "libmp3lame", "-b:a", "128k", outputPath];
+    const proc = spawn(ffmpegPath, args, { stdio: "ignore" });
+
+    proc.on("error", (err) => reject(err));
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exit code ${code}`));
+    });
+  });
 }
 
 /**
@@ -269,16 +295,35 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     // Salva o arquivo de áudio WAV
     await fs.writeFile(audioPath, wavBuffer);
 
+    // Converte para MP3 para melhor compatibilidade com WhatsApp
+    const mp3FileName = `pacoca_audio_${timestamp}.mp3`;
+    const mp3Path = path.join(audioDir, mp3FileName);
+    let mp3Size: number | undefined;
+
+    try {
+      await convertWavToMp3(audioPath, mp3Path);
+      const mp3Stats = await fs.stat(mp3Path);
+      mp3Size = mp3Stats.size;
+    } catch (convertError: any) {
+      beautifulLogger.error("AUDIO_CONVERT", "Falha ao converter WAV para MP3", {
+        error: convertError.message,
+      });
+    }
+
     beautifulLogger.aiGeneration("audio", {
       transcript: transcript.substring(0, 100) + (transcript.length > 100 ? "..." : ""),
       fileSize: wavBuffer.length,
       filePath: audioPath,
+      mp3Path: mp3Size ? mp3Path : undefined,
+      mp3Size,
     });
 
     return {
       transcript,
       audioPath,
+      audioPathMp3: mp3Size ? mp3Path : undefined,
       fileSize: wavBuffer.length,
+      fileSizeMp3: mp3Size,
     };
 
   } catch (error: any) {
