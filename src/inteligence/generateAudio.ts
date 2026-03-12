@@ -14,7 +14,6 @@
  */
 import AUDIO_PERSONALITY_PROMPT, { AUDIO_VOICE_CONFIG } from "../constants/AUDIO_PERSONALITY_PROMPT";
 import beautifulLogger from "../utils/beautifulLogger";
-import config from "../utils/config";
 import models from "../../model.json";
 import path from "path";
 import fs from "fs/promises";
@@ -149,10 +148,13 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     // Processamento de streaming SSE
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let audioChunks: string[] = [];
     let transcriptChunks: string[] = [];
 
     try {
+      let totalLinesProcessed = 0;
+      let linesWithAudio = 0;
+      let linesWithTranscript = 0;
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -161,6 +163,7 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
         const lines = chunk.split('\n');
 
         for (const line of lines) {
+          totalLinesProcessed++;
           if (line.startsWith('data: ') && line !== 'data: [DONE]') {
             try {
               const data = line.slice(6);
@@ -171,10 +174,12 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
               // Coleta chunks de áudio (base64 PCM16)
               if (audio.data) {
                 audioChunks.push(audio.data);
+                linesWithAudio++;
               }
               // Coleta transcript para log/uso
               if (audio.transcript) {
                 transcriptChunks.push(audio.transcript);
+                linesWithTranscript++;
               }
             } catch (parseError) {
               // Ignora linhas malformadas
@@ -182,6 +187,14 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
           }
         }
       }
+      
+      // Debug final
+      beautifulLogger.aiGeneration("audio_stream_debug", {
+        totalLinesProcessed,
+        linesWithAudio,
+        linesWithTranscript,
+        audioChunksFound: audioChunks.length,
+      });
     } finally {
       reader.releaseLock();
     }
@@ -200,7 +213,7 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     // Juntando e decodificando áudio PCM16 raw
     const fullAudioB64 = audioChunks.join('');
     const pcmBuffer = Buffer.from(fullAudioB64, 'base64');
-    const transcript = transcriptChunks.join('');
+    transcript = transcriptChunks.join('');
 
     // Cria header WAV para PCM16
     // 16000 Hz é mais compatível com WhatsApp e reconhecimento de voz
@@ -257,15 +270,15 @@ export function shouldUseAudio(text: string, hasMedia: boolean): boolean {
   
   // Se o texto é menor que o limite, usa áudio
   const textLength = text.length;
-  const shouldAudio = textLength < AUDIO_VOICE_CONFIG.AUDIO_TEXT_LIMIT;
+  const shouldUseAudio = textLength < AUDIO_VOICE_CONFIG.AUDIO_TEXT_LIMIT;
   
   beautifulLogger.aiGeneration("audio_decision", {
     textLength,
     limit: AUDIO_VOICE_CONFIG.AUDIO_TEXT_LIMIT,
     shouldUseAudio,
   });
-  
-  return shouldAudio;
+
+  return shouldUseAudio;
 }
 
 /**

@@ -64,7 +64,7 @@ export default class Whatsapp {
 
   // O método 'init' agora é chamado de 'connect' para maior clareza.
   // Ele será o responsável por iniciar e reiniciar a conexão.
-async connect() {
+  async connect() {
     // ALTERAÇÃO: O fetchLatestBaileysVersion agora é crucial para a conexão.
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`Usando Baileys v${version.join('.')}, é a mais recente: ${isLatest}`);
@@ -80,14 +80,17 @@ async connect() {
       ),
 
       // Adicionar shouldIgnoreJid (recomendado pela v7)
-      shouldIgnoreJid: (jid) => jid.includes('@broadcast')
+      shouldIgnoreJid: (jid: string) => jid.includes("@broadcast")
     });
 
     // Registra os handlers de eventos, que agora são métodos privados da classe.
     // Usamos .bind(this) para garantir que o 'this' dentro dos handlers se refira à nossa classe.
     this.sock.ev.on("creds.update", saveCreds);
-    this.sock.ev.on("connection.update", (update) => this.handleConnectionUpdate(update));
-    this.sock.ev.on("messages.upsert", (args) => this.handleMessagesUpsert(args));
+    this.sock.ev.on("connection.update", (update: Partial<ConnectionState>) => this.handleConnectionUpdate(update));
+    this.sock.ev.on(
+      "messages.upsert",
+      (args: { messages: proto.IWebMessageInfo[]; type: MessageUpsertType }) => this.handleMessagesUpsert(args)
+    );
 
     // --- PONTO DE DEBUG 1: O BOT ESTÁ ESCUTANDO? ---
     //console.log("👂 Bot inicializado e escutando por eventos...");
@@ -129,20 +132,20 @@ async connect() {
       } else {
         console.log("Desconectado permanentemente. Limpando credenciais...");
         const sessionDir = path.join(getHomeDir(), "whatsapp_session");
-      try {
-        if (fs.existsSync(sessionDir)) {
-          const files = fs.readdirSync(sessionDir);
-          for (const file of files) {
-            // condição para pular o arquivo .gitkeep
-            if (file !== '.gitkeep' && file !== 'temp') { // Adicionado 'temp' para não apagar a pasta
-              fs.rmSync(path.join(sessionDir, file), { recursive: true, force: true });
+        try {
+          if (fs.existsSync(sessionDir)) {
+            const files = fs.readdirSync(sessionDir);
+            for (const file of files) {
+              // condição para pular o arquivo .gitkeep
+              if (file !== ".gitkeep" && file !== "temp") { // Adicionado 'temp' para não apagar a pasta
+                fs.rmSync(path.join(sessionDir, file), { recursive: true, force: true });
+              }
             }
+            console.log("Credenciais da sessão anterior limpas com sucesso, .gitkeep e pasta temp preservados.");
           }
-          console.log("Credenciais da sessão anterior limpas com sucesso, .gitkeep e pasta temp preservados.");
+        } catch (err) {
+          console.error("Falha ao limpar os arquivos da pasta de autenticação:", err);
         }
-      } catch (err) {
-        console.error("Falha ao limpar os arquivos da pasta de autenticação:", err);
-      }
         // Encerra o processo para que o Docker/Railway reinicie o contêiner e gere um novo QR code
         process.exit(1);
       }
@@ -155,15 +158,15 @@ async connect() {
   private async handleMessagesUpsert({ messages, type }: { messages: proto.IWebMessageInfo[], type: MessageUpsertType }) {
     if (type !== "notify") return;
 
-for (const msg of messages) {
+    for (const msg of messages) {
       // ALTERAÇÃO: A v7 "desembrulha" a mensagem. O conteúdo não está mais em 'msg.message'
       // O 'msg' (IWebMessageInfo) agora contém o texto e os tipos de mídia diretamente.
 
-      const sessionId = msg.key.remoteJid;
+      const sessionId = msg.key?.remoteJid;
       if (!sessionId) continue;
 
       // PROTEÇÃO: Ignorar mensagens do próprio bot para evitar loops de resposta
-      if (msg.key.fromMe) {
+      if (msg.key?.fromMe) {
         continue;
       }
 
@@ -171,7 +174,7 @@ for (const msg of messages) {
         await this.sock!.readMessages([msg.key]);
       }
 
-      await this.sock!.sendPresenceUpdate('available', sessionId);
+      await this.sock!.sendPresenceUpdate("available", sessionId);
 
       if (this.presence === "unavailable") {
         await this.sock!.sendPresenceUpdate("available");
