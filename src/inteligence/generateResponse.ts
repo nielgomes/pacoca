@@ -10,6 +10,7 @@ import { Message, BotResponse, GenerateResponseResult, BotAction } from "./types
 import PERSONALITY_PROMPT from "../constants/PERSONALITY_PROMPT";
 import { withRetry } from "../utils/retry";
 import { searchGifs, pickRandomGif, pickRandomGifs, getBestGifUrl, getBestGifMp4Url, GiphyGif } from "../services/giphy";
+import { generateAudioResponse, shouldUseAudio } from "./generateAudio";
 
 // Re-exporta para compatibilidade
 export { Message };
@@ -439,6 +440,63 @@ try {
         } else {
             beautifulLogger.aiGeneration("complete", "IA decidiu não tomar nenhuma ação.");
         }
+    }
+
+    // --- LÓGICA DE DECISÃO ÁUDIO VS TEXTO ---
+    // Se temos apenas uma ação de mensagem (sem mídia) e o texto é curto,
+    // convertemos para áudio gerado dinamicamente
+    const hasMedia = finalActions.some(action => 
+      action.type === 'sticker' || 
+      action.type === 'gif' || 
+      action.type === 'meme' || 
+      action.type === 'audio' ||
+      action.type === 'poll' ||
+      action.type === 'location' ||
+      action.type === 'contact'
+    );
+
+    // Verifica se deve converter mensagem para áudio
+    if (finalActions.length === 1 && finalActions[0].type === 'message' && !hasMedia) {
+      const messageText = finalActions[0].message?.text || "";
+      const replyTo = finalActions[0].message?.reply;
+      
+      if (shouldUseAudio(messageText, hasMedia)) {
+        try {
+          beautifulLogger.aiGeneration("audio", "Convertendo mensagem para áudio...");
+          
+          // Obtém a última mensagem do usuário para contexto
+          const lastUserMessage = recentMessages.length > 0 
+            ? recentMessages[recentMessages.length - 1].content 
+            : "";
+          
+          // Gera o áudio
+          const audioResult = await generateAudioResponse(
+            lastUserMessage,
+            contextData
+          );
+          
+          // Substitui a ação de mensagem pela ação de áudio gerado
+          finalActions[0] = {
+            type: 'generated_audio',
+            generatedAudio: {
+              path: audioResult.audioPath,
+              transcript: audioResult.transcript,
+              reply: replyTo,
+            },
+          };
+          
+          beautifulLogger.aiGeneration("audio", {
+            status: "sucesso",
+            transcript: audioResult.transcript.substring(0, 50) + "...",
+            fileSize: audioResult.fileSize,
+          });
+        } catch (audioError: any) {
+          // Se falhar a geração de áudio, mantém a mensagem de texto
+          beautifulLogger.error("AUDIO_FALLBACK", "Falha ao gerar áudio, mantendo texto", {
+            error: audioError.message,
+          });
+        }
+      }
     }
 
     beautifulLogger.aiGeneration("complete", {

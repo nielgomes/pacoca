@@ -408,13 +408,24 @@ for (const msg of messages) {
     }
   }
 
-  async sendAudio(jid: string, filePath: string) {
+  async sendAudio(jid: string, filePath: string, replyTo?: string) {
     if (!this.sock) throw new Error("Não conectado");
-    await this.sock.sendMessage(jid, {
+    
+    const messageOptions: any = {
       audio: { url: filePath },
       ptt: false,
       mimetype: "audio/mpeg",
-    });
+    };
+    
+    // Adiciona resposta se fornecida
+    if (replyTo) {
+      messageOptions.quoted = {
+        key: { id: replyTo, remoteJid: jid },
+        message: {},
+      };
+    }
+    
+    await this.sock.sendMessage(jid, messageOptions);
   }
 
   private async updatePresence(to: string, presence: WAPresence) {

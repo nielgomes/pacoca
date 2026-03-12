@@ -92,6 +92,42 @@ export async function executeActions(response: BotResponse, context: ActionConte
                 beautifulLogger.warn("AUDIO", `Áudio '${action.audio}' não encontrado.`);
                 await whatsapp.sendText(sessionId, `Desculpe, não encontrei o áudio '${action.audio}' 🎵`);
             }
+        } else if (action.generatedAudio) {
+            // Áudio gerado dinamicamente pelo modelo de IA
+            const audioPath = action.generatedAudio.path;
+            const transcript = action.generatedAudio.transcript || "";
+            const replyTo = action.generatedAudio.reply;
+            
+            try {
+                // Verifica se o arquivo existe
+                await fs.access(audioPath);
+                
+                // Obtém o ID real da mensagem para responder
+                const realMessageId = replyTo ? memory.getMessageId(replyTo) : undefined;
+                
+                await whatsapp.sendAudio(sessionId, audioPath, realMessageId);
+                currentMessages.push({ 
+                    content: `(Paçoca): <enviou áudio gerado: "${transcript.substring(0, 50)}...">`, 
+                    name: "Paçoca", 
+                    jid: "", 
+                    ia: true 
+                });
+                beautifulLogger.actionSent("generated_audio", { 
+                    arquivo: audioPath,
+                    transcript: transcript.substring(0, 100),
+                });
+                
+                // Opcional: limpa o arquivo temporário após envio
+                // await fs.unlink(audioPath);
+            } catch (error) {
+                beautifulLogger.error("GENERATED_AUDIO", `Erro ao enviar áudio gerado: ${audioPath}`, {});
+                // Fallback para mensagem de texto se o áudio falhar
+                if (transcript) {
+                    await whatsapp.sendText(sessionId, transcript);
+                } else {
+                    await whatsapp.sendText(sessionId, "Desculpe, não consegui gerar o áudio 😢");
+                }
+            }
         } else if (action.meme) {
             const memePath = await findMediaPath("memes", action.meme);
             if (memePath) {

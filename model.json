@@ -61,5 +61,12 @@
       "input": 0.30,
       "output": 2.50
     }
+  },
+  "tts": {
+    "MODEL_NAME": "openai/gpt-audio-mini",
+    "MODEL_PRICING": {
+      "input": 0.60,
+      "output": 3.00
+    }
   }
 }
