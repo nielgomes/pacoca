@@ -92,16 +92,21 @@ export async function generateAudioResponse(
     emotionInstruction = `\n\nEMOÇÃO: ${emotionMap[emotion] || ""}`;
   }
 
-  // Prepara as mensagens para a API
-  const messages: Array<{ role: "system" | "user"; content: string }> = [
-    { role: "system", content: AUDIO_PERSONALITY_PROMPT },
-    {
-      role: "user",
-      content: `Responda em áudio para a seguinte mensagem:${contextData ? `\n\nContexto da conversa:\n${contextData}` : ""}
+  // Prepara as mensagens para a API (formato compatível com OpenRouter)
+  const userPrompt = `Responda em áudio para a seguinte mensagem:${contextData ? `\n\nContexto da conversa:\n${contextData}` : ""}
 
 Mensagem do usuário: "${userMessage}"${emotionInstruction}
 
-Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adolescente falando com amigos.`
+Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adolescente falando com amigos.`;
+
+  const messages: Array<
+    | { role: "system"; content: string }
+    | { role: "user"; content: Array<{ type: "text"; text: string }> }
+  > = [
+    { role: "system", content: AUDIO_PERSONALITY_PROMPT },
+    {
+      role: "user",
+      content: [{ type: "text", text: userPrompt }],
     },
   ];
 
@@ -122,22 +127,21 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
       headers: {
         "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/nielgomes/pacoca",
-        "X-Title": "Paçoca",
+        "HTTP-Referer": process.env.APP_URL || "https://github.com/nielgomes/pacoca",
+        "X-OpenRouter-Title": process.env.APP_NAME || "Paçoca",
       },
       body: JSON.stringify({
         model: MODEL_NAME,
         messages: messages,
         modalities: ["text", "audio"],
-        response_format: { type: "audio" },
         audio: {
           voice: AUDIO_VOICE_CONFIG.DEFAULT_VOICE,
-          format: "pcm16", // OBRIGATÓRIO com stream: true
+          format: "pcm16",
         },
         temperature: AUDIO_VOICE_CONFIG.TEMPERATURE,
         top_p: AUDIO_VOICE_CONFIG.TOP_P,
         max_tokens: AUDIO_VOICE_CONFIG.MAX_TOKENS,
-        stream: true, // OBRIGATÓRIO para áudio
+        stream: true,
       }),
     });
 
