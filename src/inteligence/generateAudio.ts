@@ -6,8 +6,10 @@
  * 
  * O áudio é gerado em chunks SSE (Server-Sent Events) e concatenado para
  * formar o arquivo de áudio final em formato WAV.
+ * 
+ * Usa fetch direto pois o SDK openai não suporta modalities/audio quando
+ * apontado para OpenRouter.
  */
-import { openai } from "../services/openai";
 import AUDIO_PERSONALITY_PROMPT, { AUDIO_VOICE_CONFIG } from "../constants/AUDIO_PERSONALITY_PROMPT";
 import beautifulLogger from "../utils/beautifulLogger";
 import config from "../utils/config";
@@ -86,35 +88,75 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
   let transcript = "";
 
   try {
-    // Faz a chamada streaming para a API
-    const stream = await openai.chat.completions.create({
-      model: MODEL_NAME,
-      messages: messages,
-      modalities: ["text", "audio"],
-      audio: {
-        voice: AUDIO_VOICE_CONFIG.DEFAULT_VOICE,
-        format: AUDIO_VOICE_CONFIG.DEFAULT_FORMAT,
+    // Usa fetch direto pois o SDK openai não suporta modalities/audio
+    // quando apontado para OpenRouter
+    const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+    if (!OPENROUTER_API_KEY) {
+      throw new Error("OPENROUTER_API_KEY não definida");
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/nielgomes/pacoca",
+        "X-Title": "Paçoca",
       },
-      temperature: AUDIO_VOICE_CONFIG.TEMPERATURE,
-      top_p: AUDIO_VOICE_CONFIG.TOP_P,
-      max_tokens: AUDIO_VOICE_CONFIG.MAX_TOKENS,
-      stream: true,
-    }, {
-      timeout: 60 * 1000, // 60 segundos timeout para geração de áudio
+      body: JSON.stringify({
+        model: MODEL_NAME,
+        messages: messages,
+        modalities: ["text", "audio"],
+        audio: {
+          voice: AUDIO_VOICE_CONFIG.DEFAULT_VOICE,
+          format: AUDIO_VOICE_CONFIG.DEFAULT_FORMAT,
+        },
+        temperature: AUDIO_VOICE_CONFIG.TEMPERATURE,
+        top_p: AUDIO_VOICE_CONFIG.TOP_P,
+        max_tokens: AUDIO_VOICE_CONFIG.MAX_TOKENS,
+        stream: true,
+      }),
     });
 
-    // Processa os chunks recebidos
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta as any;
-      
-      if (delta?.audio) {
-        // Coleta os dados de áudio
-        if (delta.audio.data) {
-          audioChunks.push(delta.audio.data);
-        }
-        // Coleta o transcript (texto da fala)
-        if (delta.audio.transcript) {
-          transcript += delta.audio.transcript;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro da API: ${response.status} - ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error("Corpo da resposta vazio");
+    }
+
+    // Processa o stream SSE
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const text = decoder.decode(value);
+      const lines = text.split("\n");
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") break;
+
+        try {
+          const json = JSON.parse(data);
+          const delta = json.choices?.[0]?.delta ?? {};
+          const audio = delta.audio ?? {};
+
+          if (audio.data) {
+            audioChunks.push(audio.data);
+          }
+          if (audio.transcript) {
+            transcript += audio.transcript;
+          }
+        } catch (e) {
+          // Ignora erros de parse de linhas não-JSON
         }
       }
     }
