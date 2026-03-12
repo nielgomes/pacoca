@@ -190,13 +190,21 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
       throw new Error("Nenhum chunk de áudio recebido");
     }
 
+    // Debug: mostra quantos chunks foram recebidos
+    beautifulLogger.aiGeneration("audio_debug", {
+      chunksCount: audioChunks.length,
+      totalBase64Length: audioChunks.join('').length,
+      transcriptChunks: transcriptChunks.length,
+    });
+
     // Juntando e decodificando áudio PCM16 raw
     const fullAudioB64 = audioChunks.join('');
     const pcmBuffer = Buffer.from(fullAudioB64, 'base64');
     const transcript = transcriptChunks.join('');
 
     // Cria header WAV para PCM16
-    const SAMPLE_RATE = 24000; // Padrão GPT Audio
+    // 16000 Hz é mais compatível com WhatsApp e reconhecimento de voz
+    const SAMPLE_RATE = 16000; 
     const WAV_HEADER = createWavHeader(SAMPLE_RATE, 1, 16, pcmBuffer.length);
     const wavBuffer = Buffer.concat([WAV_HEADER, pcmBuffer]);
 

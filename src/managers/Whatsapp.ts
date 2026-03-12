@@ -411,10 +411,14 @@ for (const msg of messages) {
   async sendAudio(jid: string, filePath: string, replyTo?: string) {
     if (!this.sock) throw new Error("Não conectado");
     
+    // Detecta o mimetype baseado na extensão do arquivo
+    const isWav = filePath.toLowerCase().endsWith('.wav');
+    const mimetype = isWav ? "audio/wav" : "audio/mpeg";
+    
     const messageOptions: any = {
       audio: { url: filePath },
       ptt: false,
-      mimetype: "audio/mpeg",
+      mimetype: mimetype,
     };
     
     // Adiciona resposta se fornecida
