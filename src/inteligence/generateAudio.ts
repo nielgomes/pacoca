@@ -72,7 +72,7 @@ async function convertWavToOggOpus(inputPath: string, outputPath: string): Promi
       "-i",
       inputPath,
       "-filter:a",
-      "asetrate=16000*1.40,aresample=16000,atempo=1.15",
+      "asetrate=16000*1.90,aresample=16000,atempo=1.15",
       "-codec:a",
       "libopus",
       "-b:a",
