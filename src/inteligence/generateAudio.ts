@@ -22,40 +22,6 @@ import fs from "fs/promises";
 import getHomeDir from "../utils/getHomeDir";
 
 /**
- * Adiciona header WAV a dados PCM16 para criar arquivo WAV válido
- * @param pcmData Buffer com dados PCM16
- * @param sampleRate Taxa de amostragem (padrão 24000 para gpt-audio-mini)
- * @param numChannels Número de canais (1 = mono)
- * @param bitsPerSample Bits por amostra (16)
- */
-function createWavBuffer(pcmData: Buffer, sampleRate: number = 24000, numChannels: number = 1, bitsPerSample: number = 16): Buffer {
-  const dataSize = pcmData.length;
-  const buffer = Buffer.alloc(44 + dataSize);
-  
-  // RIFF header
-  buffer.write("RIFF", 0);
-  buffer.writeUInt32LE(36 + dataSize, 4);
-  buffer.write("WAVE", 8);
-  
-  // fmt chunk
-  buffer.write("fmt ", 12);
-  buffer.writeUInt32LE(16, 16); // chunk size
-  buffer.writeUInt16LE(1, 20); // audio format (PCM)
-  buffer.writeUInt16LE(numChannels, 22);
-  buffer.writeUInt32LE(sampleRate, 24);
-  buffer.writeUInt32LE(sampleRate * numChannels * (bitsPerSample / 8), 28); // byte rate
-  buffer.writeUInt16LE(numChannels * (bitsPerSample / 8), 32); // block align
-  buffer.writeUInt16LE(bitsPerSample, 34);
-  
-  // data chunk
-  buffer.write("data", 36);
-  buffer.writeUInt32LE(dataSize, 40);
-  pcmData.copy(buffer, 44);
-  
-  return buffer;
-}
-
-/**
  * Resultado da geração de áudio
  */
 export interface AudioGenerationResult {
@@ -146,12 +112,12 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
         modalities: ["text", "audio"],
         audio: {
           voice: AUDIO_VOICE_CONFIG.DEFAULT_VOICE,
-          format: "pcm16", // PCM16 é obrigatório com stream: true
+          format: "wav", // WAV funciona com stream: false
         },
         temperature: AUDIO_VOICE_CONFIG.TEMPERATURE,
         top_p: AUDIO_VOICE_CONFIG.TOP_P,
         max_tokens: AUDIO_VOICE_CONFIG.MAX_TOKENS,
-        stream: true,
+        stream: false, // Sem streaming - retorna áudio direto
       }),
     });
 
@@ -160,54 +126,17 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
       throw new Error(`Erro da API: ${response.status} - ${errorText}`);
     }
 
-    if (!response.body) {
-      throw new Error("Corpo da resposta vazio");
-    }
+    // Sem streaming - resposta direta
+    const json = await response.json();
+    const audioData = json.choices?.[0]?.audio?.data;
+    const transcript = json.choices?.[0]?.audio?.transcript || "";
 
-    // Processa o stream SSE
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const text = decoder.decode(value);
-      const lines = text.split("\n");
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") break;
-
-        try {
-          const json = JSON.parse(data);
-          const delta = json.choices?.[0]?.delta ?? {};
-          const audio = delta.audio ?? {};
-
-          if (audio.data) {
-            audioChunks.push(audio.data);
-          }
-          if (audio.transcript) {
-            transcript += audio.transcript;
-          }
-        } catch (e) {
-          // Ignora erros de parse de linhas não-JSON
-        }
-      }
-    }
-
-    if (audioChunks.length === 0) {
+    if (!audioData) {
       throw new Error("Nenhum áudio foi gerado pela API");
     }
 
-    // Decodifica os chunks de áudio PCM16
-    const fullAudioBase64 = audioChunks.join("");
-    const pcmBuffer = Buffer.from(fullAudioBase64, "base64");
-
-    // Converte PCM16 para WAV (adiciona header WAV)
-    const wavBuffer = createWavBuffer(pcmBuffer, 24000, 1, 16);
+    // Decodifica o áudio WAV direto
+    const audioBytes = Buffer.from(audioData, "base64");
 
     // Gera um nome de arquivo único
     const timestamp = Date.now();
@@ -220,18 +149,18 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     const audioPath = path.join(audioDir, audioFileName);
     
     // Salva o arquivo de áudio WAV
-    await fs.writeFile(audioPath, wavBuffer);
+    await fs.writeFile(audioPath, audioBytes);
 
     beautifulLogger.aiGeneration("audio", {
       transcript: transcript.substring(0, 100) + (transcript.length > 100 ? "..." : ""),
-      fileSize: wavBuffer.length,
+      fileSize: audioBytes.length,
       filePath: audioPath,
     });
 
     return {
       transcript,
       audioPath,
-      fileSize: wavBuffer.length,
+      fileSize: audioBytes.length,
     };
 
   } catch (error: any) {
