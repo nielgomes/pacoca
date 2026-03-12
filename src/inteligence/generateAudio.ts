@@ -149,6 +149,9 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let transcriptChunks: string[] = [];
+    let finalMessageAudioData: string | undefined;
+    const rawDataSamples: string[] = [];
+    let lastJsonString: string | undefined;
 
     try {
       let totalLinesProcessed = 0;
@@ -164,12 +167,17 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
 
         for (const line of lines) {
           totalLinesProcessed++;
-          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+          if (line.startsWith("data: ") && line !== "data: [DONE]") {
             try {
               const data = line.slice(6);
+              if (rawDataSamples.length < 5) {
+                rawDataSamples.push(data);
+              }
+              lastJsonString = data;
               const json = JSON.parse(data);
               const delta = json.choices?.[0]?.delta || {};
               const audio = delta.audio || {};
+              const messageAudio = json.choices?.[0]?.message?.audio || {};
 
               // Coleta chunks de áudio (base64 PCM16)
               if (audio.data) {
@@ -180,6 +188,11 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
               if (audio.transcript) {
                 transcriptChunks.push(audio.transcript);
                 linesWithTranscript++;
+              }
+
+              // Alguns providers enviam áudio no message final, não no delta
+              if (messageAudio.data) {
+                finalMessageAudioData = messageAudio.data;
               }
             } catch (parseError) {
               // Ignora linhas malformadas
@@ -195,11 +208,25 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
         linesWithTranscript,
         audioChunksFound: audioChunks.length,
       });
+      if (rawDataSamples.length > 0) {
+        beautifulLogger.aiGeneration("audio_stream_raw", {
+          samples: rawDataSamples,
+        });
+      }
     } finally {
       reader.releaseLock();
     }
 
+    if (audioChunks.length === 0 && finalMessageAudioData) {
+      audioChunks.push(finalMessageAudioData);
+    }
+
     if (audioChunks.length === 0) {
+      if (lastJsonString) {
+        beautifulLogger.aiGeneration("audio_stream_last_json", {
+          lastJson: lastJsonString,
+        });
+      }
       throw new Error("Nenhum chunk de áudio recebido");
     }
 
