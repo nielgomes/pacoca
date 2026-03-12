@@ -103,7 +103,7 @@ const tools: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "send_audio",
-      description: "Envia um meme de áudio curto (.mp3).",
+        description: "Envia um meme de áudio curto do catálogo. Use apenas quando o áudio for claramente relevante ao contexto e mais engraçado/adequado que uma resposta em texto.",
       parameters: {
         type: "object",
         properties: {

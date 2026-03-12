@@ -18,8 +18,11 @@ import models from "../../model.json";
 import path from "path";
 import fs from "fs/promises";
 import getHomeDir from "../utils/getHomeDir";
-import { spawn } from "child_process";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import ffmpegPath from "ffmpeg-static";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Cria header WAV para dados PCM16
@@ -62,7 +65,8 @@ export interface AudioGenerationResult {
  * Converte WAV PCM16 para OGG/Opus usando ffmpeg-static
  */
 async function convertWavToOggOpus(inputPath: string, outputPath: string, applyVoiceFix: boolean = false): Promise<void> {
-  if (!ffmpegPath) {
+  const ffmpegBin = ffmpegPath;
+  if (!ffmpegBin) {
     throw new Error("ffmpeg não encontrado (ffmpeg-static)");
   }
 
@@ -86,49 +90,47 @@ async function convertWavToOggOpus(inputPath: string, outputPath: string, applyV
     args.splice(3, 0, "-filter:a", "asetrate=16000*1.90,aresample=16000,atempo=1.07");
   }
 
-  await new Promise<void>((resolve, reject) => {
-    const proc = spawn(ffmpegPath, args, { stdio: "ignore" });
-
-    proc.on("error", (err) => reject(err));
-    proc.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exit code ${code}`));
-    });
-  });
+  try {
+    await execFileAsync(ffmpegBin, args, { windowsHide: true });
+  } catch (error: any) {
+    throw new Error(`ffmpeg falhou ao converter WAV->OGG: ${error?.message || error}`);
+  }
 }
 
 /**
  * Converte qualquer formato de áudio para OGG/Opus (para compatibilidade com WhatsApp)
  */
 export async function convertAudioToOgg(inputPath: string): Promise<string> {
+  const ffmpegBin = ffmpegPath;
+  if (!ffmpegBin) {
+    throw new Error("ffmpeg não encontrado (ffmpeg-static)");
+  }
+
   const dir = path.dirname(inputPath);
   const ext = path.extname(inputPath);
   const basename = path.basename(inputPath, ext);
   const outputPath = path.join(dir, `${basename}_converted.ogg`);
 
-  await new Promise<void>((resolve, reject) => {
-    const args = [
-      "-y",
-      "-i",
-      inputPath,
-      "-codec:a",
-      "libopus",
-      "-b:a",
-      "24k",
-      "-ar",
-      "16000",
-      "-ac",
-      "1",
-      outputPath,
-    ];
-    const proc = spawn(ffmpegPath!, args, { stdio: "ignore" });
+  const args = [
+    "-y",
+    "-i",
+    inputPath,
+    "-codec:a",
+    "libopus",
+    "-b:a",
+    "24k",
+    "-ar",
+    "16000",
+    "-ac",
+    "1",
+    outputPath,
+  ];
 
-    proc.on("error", (err) => reject(err));
-    proc.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exit code ${code}`));
-    });
-  });
+  try {
+    await execFileAsync(ffmpegBin, args, { windowsHide: true });
+  } catch (error: any) {
+    throw new Error(`ffmpeg falhou ao converter áudio de mídia: ${error?.message || error}`);
+  }
 
   return outputPath;
 }

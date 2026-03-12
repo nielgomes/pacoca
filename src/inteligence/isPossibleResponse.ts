@@ -5,6 +5,90 @@ import { Message } from "./types";
 import config from '../../model.json';
 import { withRetry } from "../utils/retry";
 
+function tryParsePossibleResponse(content: string): { possible: boolean; reason: string } {
+  const normalize = (text: string) =>
+    text
+      .trim()
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```$/i, "")
+      .trim();
+
+  const extractFirstJsonObject = (text: string): string | null => {
+    const start = text.indexOf("{");
+    if (start === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === "{") depth++;
+      if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          return text.slice(start, i + 1);
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const tryCandidates: string[] = [];
+  const cleaned = normalize(content);
+  tryCandidates.push(cleaned);
+
+  const extracted = extractFirstJsonObject(cleaned);
+  if (extracted && extracted !== cleaned) {
+    tryCandidates.push(extracted);
+  }
+
+  // Reparo básico para JSON parcial: fecha chaves faltantes
+  const startAt = cleaned.indexOf("{");
+  if (startAt !== -1) {
+    const partial = cleaned.slice(startAt);
+    const opens = (partial.match(/\{/g) || []).length;
+    const closes = (partial.match(/\}/g) || []).length;
+    if (opens > closes) {
+      tryCandidates.push(partial + "}".repeat(opens - closes));
+    }
+  }
+
+  let lastError: unknown;
+  for (const candidate of tryCandidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (typeof parsed?.possible !== "boolean" || typeof parsed?.reason !== "string") {
+        throw new Error("JSON não contém os campos esperados: possible(boolean), reason(string)");
+      }
+      return parsed as { possible: boolean; reason: string };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Falha ao fazer parse do JSON de possible_response");
+}
+
 export default async function isPossibleResponse(data: SummaryData, messages: Message[]) {
   // Limita a 30 mensagens mais recentes para evitar custos excessivos
   const recentMessages = messages.slice(-30);
@@ -65,40 +149,46 @@ export default async function isPossibleResponse(data: SummaryData, messages: Me
     },
   };
 
-  const response = await withRetry(async () => {
-    return await openai.chat.completions.create({
-      model: config.free.MODEL_NAME,
-      messages: [
-        { role: "system", content: POSSIBLE_RESPONSE_PROMPT },
-        {
-          role: "assistant",
-          content: `Opiniões já formadas dos usuários: ${contextData}`,
-        },
-        {
-          role: "user",
-          content: `Conversa: \n\n${messagesMaped}`
-        },
-      ],
-      response_format: responseSchema,
-      max_tokens: 30
-    });
-  }, 3, 1000);
+  const PARSE_ATTEMPTS = 2;
 
-  const content = response.choices[0]?.message?.content;
+  for (let attempt = 1; attempt <= PARSE_ATTEMPTS; attempt++) {
+    const response = await withRetry(async () => {
+      return await openai.chat.completions.create({
+        model: config.free.MODEL_NAME,
+        messages: [
+          { role: "system", content: POSSIBLE_RESPONSE_PROMPT },
+          {
+            role: "assistant",
+            content: `Opiniões já formadas dos usuários: ${contextData}`,
+          },
+          {
+            role: "user",
+            content: `Conversa: \n\n${messagesMaped}`
+          },
+        ],
+        response_format: responseSchema,
+        max_tokens: 30
+      });
+    }, 3, 1000);
 
-  if (!content) {
-    throw new Error("Nenhuma resposta foi gerada pela IA (conteúdo nulo)");
-  }
-
-  try {
-    const parsedResponse = JSON.parse(content);
-    if (!("possible" in parsedResponse)) {
-      throw new Error("Resposta não contém a propriedade 'possible'.");
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      if (attempt === PARSE_ATTEMPTS) {
+        throw new Error("Nenhuma resposta foi gerada pela IA (conteúdo nulo)");
+      }
+      continue;
     }
-    return parsedResponse as { possible: boolean; reason: string };
-  } catch (error) {
-    console.error("Erro ao fazer parse da resposta do resumo:", error);
-    console.error("Conteúdo recebido que falhou o parse:", content);
-    throw new Error("A resposta da IA não é um JSON válido, mesmo com o modo estruturado.");
+
+    try {
+      return tryParsePossibleResponse(content);
+    } catch (error) {
+      console.error(`Erro ao fazer parse da resposta do resumo (tentativa ${attempt}/${PARSE_ATTEMPTS}):`, error);
+      console.error("Conteúdo recebido que falhou o parse:", content);
+      if (attempt === PARSE_ATTEMPTS) {
+        throw new Error("A resposta da IA não é um JSON válido, mesmo com o modo estruturado.");
+      }
+    }
   }
+
+  throw new Error("Falha inesperada ao validar possible_response");
 }
