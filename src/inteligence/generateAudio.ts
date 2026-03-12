@@ -134,6 +134,7 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
         model: MODEL_NAME,
         messages: messages,
         modalities: ["text", "audio"],
+        response_format: { type: "audio" },
         audio: {
           voice: AUDIO_VOICE_CONFIG.DEFAULT_VOICE,
           format: "pcm16",
