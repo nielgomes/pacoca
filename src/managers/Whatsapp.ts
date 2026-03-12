@@ -415,21 +415,45 @@ for (const msg of messages) {
     const isWav = filePath.toLowerCase().endsWith('.wav');
     const mimetype = isWav ? "audio/wav" : "audio/mpeg";
     
-    const messageOptions: any = {
-      audio: { url: filePath },
-      ptt: false,
-      mimetype: mimetype,
-    };
-    
-    // Adiciona resposta se fornecida
-    if (replyTo) {
-      messageOptions.quoted = {
-        key: { id: replyTo, remoteJid: jid },
-        message: {},
+    try {
+      // Lê o arquivo como buffer (mais confiável que URL)
+      const audioBuffer = fs.readFileSync(filePath);
+      
+      const messageOptions: any = {
+        audio: audioBuffer,
+        ptt: true, // Enviar como nota de voz
+        mimetype: mimetype,
       };
+      
+      // Adiciona resposta se fornecida
+      if (replyTo) {
+        messageOptions.quoted = {
+          key: { id: replyTo, remoteJid: jid },
+          message: {},
+        };
+      }
+      
+      await this.sock.sendMessage(jid, messageOptions);
+      console.log("🕵️ DEBUG [sendAudio]: Áudio enviado com buffer, tamanho:", audioBuffer.length);
+    } catch (audioError) {
+      console.error("🕵️ DEBUG [sendAudio]: Erro ao enviar áudio:", audioError);
+      // Fallback: enviar como documento
+      const docMessage: any = {
+        document: { url: filePath },
+        mimetype: mimetype,
+        fileName: filePath.split('/').pop(),
+      };
+      
+      if (replyTo) {
+        docMessage.quoted = {
+          key: { id: replyTo, remoteJid: jid },
+          message: {},
+        };
+      }
+      
+      await this.sock.sendMessage(jid, docMessage);
+      console.log("🕵️ DEBUG [sendAudio]: Áudio enviado como documento (fallback)");
     }
-    
-    await this.sock.sendMessage(jid, messageOptions);
   }
 
   private async updatePresence(to: string, presence: WAPresence) {
