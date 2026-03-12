@@ -10,8 +10,7 @@
  * Usa fetch direto pois o SDK openai não suporta modalities/audio quando
  * apontado para OpenRouter.
  * 
- * Nota: Com stream: true, o formato deve ser "pcm16" (não "wav"), e depois
- * convertemos para WAV com o header correto para o WhatsApp.
+ * IMPORTANTE: O modelo exige stream: true + format: pcm16 para áudio
  */
 import AUDIO_PERSONALITY_PROMPT, { AUDIO_VOICE_CONFIG } from "../constants/AUDIO_PERSONALITY_PROMPT";
 import beautifulLogger from "../utils/beautifulLogger";
@@ -20,6 +19,27 @@ import models from "../../model.json";
 import path from "path";
 import fs from "fs/promises";
 import getHomeDir from "../utils/getHomeDir";
+
+/**
+ * Cria header WAV para dados PCM16
+ */
+function createWavHeader(sampleRate: number, channels: number, bitsPerSample: number, dataSize: number): Buffer {
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // PCM
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * channels * bitsPerSample / 8, 28);
+  header.writeUInt16LE(channels * bitsPerSample / 8, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(dataSize, 40);
+  return header;
+}
 
 /**
  * Resultado da geração de áudio
@@ -112,31 +132,73 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
         modalities: ["text", "audio"],
         audio: {
           voice: AUDIO_VOICE_CONFIG.DEFAULT_VOICE,
-          format: "wav", // WAV funciona com stream: false
+          format: "pcm16", // OBRIGATÓRIO com stream: true
         },
         temperature: AUDIO_VOICE_CONFIG.TEMPERATURE,
         top_p: AUDIO_VOICE_CONFIG.TOP_P,
         max_tokens: AUDIO_VOICE_CONFIG.MAX_TOKENS,
-        stream: false, // Sem streaming - retorna áudio direto
+        stream: true, // OBRIGATÓRIO para áudio
       }),
     });
 
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       const errorText = await response.text();
       throw new Error(`Erro da API: ${response.status} - ${errorText}`);
     }
 
-    // Sem streaming - resposta direta
-    const json = await response.json();
-    const audioData = json.choices?.[0]?.audio?.data;
-    const transcript = json.choices?.[0]?.audio?.transcript || "";
+    // Processamento de streaming SSE
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let audioChunks: string[] = [];
+    let transcriptChunks: string[] = [];
 
-    if (!audioData) {
-      throw new Error("Nenhum áudio foi gerado pela API");
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const data = line.slice(6);
+              const json = JSON.parse(data);
+              const delta = json.choices?.[0]?.delta || {};
+              const audio = delta.audio || {};
+
+              // Coleta chunks de áudio (base64 PCM16)
+              if (audio.data) {
+                audioChunks.push(audio.data);
+              }
+              // Coleta transcript para log/uso
+              if (audio.transcript) {
+                transcriptChunks.push(audio.transcript);
+              }
+            } catch (parseError) {
+              // Ignora linhas malformadas
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
     }
 
-    // Decodifica o áudio WAV direto
-    const audioBytes = Buffer.from(audioData, "base64");
+    if (audioChunks.length === 0) {
+      throw new Error("Nenhum chunk de áudio recebido");
+    }
+
+    // Juntando e decodificando áudio PCM16 raw
+    const fullAudioB64 = audioChunks.join('');
+    const pcmBuffer = Buffer.from(fullAudioB64, 'base64');
+    const transcript = transcriptChunks.join('');
+
+    // Cria header WAV para PCM16
+    const SAMPLE_RATE = 24000; // Padrão GPT Audio
+    const WAV_HEADER = createWavHeader(SAMPLE_RATE, 1, 16, pcmBuffer.length);
+    const wavBuffer = Buffer.concat([WAV_HEADER, pcmBuffer]);
 
     // Gera um nome de arquivo único
     const timestamp = Date.now();
@@ -149,18 +211,18 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     const audioPath = path.join(audioDir, audioFileName);
     
     // Salva o arquivo de áudio WAV
-    await fs.writeFile(audioPath, audioBytes);
+    await fs.writeFile(audioPath, wavBuffer);
 
     beautifulLogger.aiGeneration("audio", {
       transcript: transcript.substring(0, 100) + (transcript.length > 100 ? "..." : ""),
-      fileSize: audioBytes.length,
+      fileSize: wavBuffer.length,
       filePath: audioPath,
     });
 
     return {
       transcript,
       audioPath,
-      fileSize: audioBytes.length,
+      fileSize: wavBuffer.length,
     };
 
   } catch (error: any) {
