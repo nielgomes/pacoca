@@ -134,7 +134,6 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
         model: MODEL_NAME,
         messages: messages,
         modalities: ["text", "audio"],
-        response_format: { type: "audio" },
         audio: {
           voice: AUDIO_VOICE_CONFIG.DEFAULT_VOICE,
           format: "pcm16",
@@ -154,6 +153,7 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     // Processamento de streaming SSE
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let sseBuffer = "";
     let transcriptChunks: string[] = [];
     let finalMessageAudioData: string | undefined;
     const rawDataSamples: string[] = [];
@@ -169,7 +169,9 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
         if (done) break;
 
         const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        sseBuffer += chunk;
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() || ""; // Mantém a última linha incompleta
 
         for (const line of lines) {
           totalLinesProcessed++;
