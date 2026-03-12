@@ -5,6 +5,7 @@ import getHomeDir from "../utils/getHomeDir";
 import Whatsapp from "./Whatsapp";
 import beautifulLogger from "../utils/beautifulLogger";
 import { memory } from "./MemoryManager";
+import { convertAudioToOgg } from "../inteligence/generateAudio";
 
 
 // função auxiliar para encontrar mídias de forma case-insensitive.
@@ -85,7 +86,14 @@ export async function executeActions(response: BotResponse, context: ActionConte
         } else if (action.audio) {
             const audioPath = await findMediaPath("audios", action.audio);
             if (audioPath) {
-                await whatsapp.sendAudio(sessionId, audioPath);
+                // Converte MP3 para OGG/Opus para compatibilidade com WhatsApp
+                let sendPath = audioPath;
+                try {
+                    sendPath = await convertAudioToOgg(audioPath);
+                } catch (convertError: any) {
+                    beautifulLogger.warn("AUDIO_CONVERT", `Falha ao converter ${action.audio} para OGG, enviando original`, { error: convertError.message });
+                }
+                await whatsapp.sendAudio(sessionId, sendPath);
                 currentMessages.push({ content: `(Paçoca): <enviou o áudio ${action.audio}>`, name: "Paçoca", jid: "", ia: true });
                 beautifulLogger.actionSent("audio", { arquivo: action.audio });
             } else {

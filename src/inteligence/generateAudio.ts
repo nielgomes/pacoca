@@ -61,18 +61,56 @@ export interface AudioGenerationResult {
 /**
  * Converte WAV PCM16 para OGG/Opus usando ffmpeg-static
  */
-async function convertWavToOggOpus(inputPath: string, outputPath: string): Promise<void> {
+async function convertWavToOggOpus(inputPath: string, outputPath: string, applyVoiceFix: boolean = false): Promise<void> {
   if (!ffmpegPath) {
     throw new Error("ffmpeg não encontrado (ffmpeg-static)");
   }
+
+  const args = [
+    "-y",
+    "-i",
+    inputPath,
+    "-codec:a",
+    "libopus",
+    "-b:a",
+    "24k",
+    "-ar",
+    "16000",
+    "-ac",
+    "1",
+    outputPath,
+  ];
+
+  // Aplica filtro de voz se solicitado (para TTS)
+  if (applyVoiceFix) {
+    args.splice(3, 0, "-filter:a", "asetrate=16000*1.90,aresample=16000,atempo=1.07");
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn(ffmpegPath, args, { stdio: "ignore" });
+
+    proc.on("error", (err) => reject(err));
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exit code ${code}`));
+    });
+  });
+}
+
+/**
+ * Converte qualquer formato de áudio para OGG/Opus (para compatibilidade com WhatsApp)
+ */
+export async function convertAudioToOgg(inputPath: string): Promise<string> {
+  const dir = path.dirname(inputPath);
+  const ext = path.extname(inputPath);
+  const basename = path.basename(inputPath, ext);
+  const outputPath = path.join(dir, `${basename}_converted.ogg`);
 
   await new Promise<void>((resolve, reject) => {
     const args = [
       "-y",
       "-i",
       inputPath,
-      "-filter:a",
-      "asetrate=16000*1.90,aresample=16000,atempo=1.07",
       "-codec:a",
       "libopus",
       "-b:a",
@@ -83,7 +121,7 @@ async function convertWavToOggOpus(inputPath: string, outputPath: string): Promi
       "1",
       outputPath,
     ];
-    const proc = spawn(ffmpegPath, args, { stdio: "ignore" });
+    const proc = spawn(ffmpegPath!, args, { stdio: "ignore" });
 
     proc.on("error", (err) => reject(err));
     proc.on("close", (code) => {
@@ -91,6 +129,8 @@ async function convertWavToOggOpus(inputPath: string, outputPath: string): Promi
       else reject(new Error(`ffmpeg exit code ${code}`));
     });
   });
+
+  return outputPath;
 }
 
 /**
@@ -316,7 +356,7 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
     let oggSize: number | undefined;
 
     try {
-      await convertWavToOggOpus(audioPath, oggPath);
+      await convertWavToOggOpus(audioPath, oggPath, true);
       const oggStats = await fs.stat(oggPath);
       oggSize = oggStats.size;
     } catch (convertError: any) {
