@@ -22,7 +22,17 @@ const mockMessages = [
   console.log("🚀 Iniciando teste do módulo de IA...");
   console.log("-----------------------------------------");
   try {
-    const result = await generateResponse(mockData, mockMessages);
+    // include a dummy session id so audio heuristics can track cooldown
+    const result = await generateResponse(mockData, mockMessages, "test-session");
+    console.log("
+📌 Resultado normal:", JSON.stringify(result, null, 2));
+
+    // agora simular comandos para verificar handlers básicos (sem WhatsApp connection)
+    const { handleCommand } = await import('./src/managers/CommandManager.js');
+    const fakeContext = { whatsapp: { sendText: async () => {}, sendAudio: async () => {}, sendImage: async () => {} }, sessionId: 'test', currentMessages: [], memory: {} };
+    await handleCommand('/tts me fale algo aleatório', fakeContext);
+    await handleCommand('/meme festa', fakeContext);
+    await handleCommand('/audio oi', fakeContext);
     console.log("\n✅ Teste concluído com sucesso! Resposta da IA:");
     console.log(JSON.stringify(result, null, 2));
   } catch (error) {

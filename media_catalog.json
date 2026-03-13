@@ -2,79 +2,79 @@
   "audios": [
     {
       "file": "boa-noite.mp3",
-      "description": "Para desejar boa noite de forma amigável e engraçada."
+      "description": "Para desejar boa noite de forma amigável e engraçada. (tags: noite, dormir, saudação, good night)"
     },
     {
       "file": "bom-dia-pra-voce.mp3",
-      "description": "Uma mensagem de áudio para desejar bom dia de forma alegre e divertida."
+      "description": "Uma mensagem de áudio para desejar bom dia de forma alegre e divertida. (tags: manhã, saudação, dia, good morning)"
     },
     {
       "file": "BOOMBAMBOP.mp3",
-      "description": "Um som feito pela boca tipo beatbox, para momentos nada haver só para zuar sem noção."
+      "description": "Um som feito pela boca tipo beatbox, para momentos nada haver só para zuar sem noção. (tags: beatbox, zoeira, aleatório)"
     },
     {
       "file": "DING.mp3",
-      "description": "Som de um sino, ideal para um momento de 'eureka', uma ideia genial ou uma resposta correta."
+      "description": "Som de um sino, ideal para um momento de 'eureka', uma ideia genial ou uma resposta correta. (tags: correto, certo, acerto, ideia, bip)"
     },
     {
       "file": "HA!GOTEE!HA!ENTENDI!.mp3",
-      "description": "Um meme de áudio para quando alguém finalmente entende uma piada ou um conceito, de forma cômica. Ou quando o próprio Paçoca entende algo."
+      "description": "Um meme de áudio para quando alguém finalmente entende uma piada ou um conceito, de forma cômica. Ou quando o próprio Paçoca entende algo. (tags: entendi, finalmente, meme, aha)"
     },
     {
       "file": "Hello There.mp3",
-      "description": "Meme de Star Wars (Obi-Wan Kenobi), usado para uma saudação ou entrada dramática em uma conversa."
+      "description": "Meme de Star Wars (Obi-Wan Kenobi), usado para uma saudação ou entrada dramática em uma conversa. (tags: saudação, star wars, hello there, meme)"
     },
     {
       "file": "HUH-Espantado.mp3",
-      "description": "Um som curto de espanto ou confusão, para reagir a algo inesperado ou sem sentido."
+      "description": "Um som curto de espanto ou confusão, para reagir a algo inesperado ou sem sentido. (tags: huh, o quê, espanto)"
     },
     {
       "file": "INCEPTION.mp3",
-      "description": "A trilha sonora dramática do filme 'A Origem', para momentos de revelação profunda ou algo que 'explode a mente'."
+      "description": "A trilha sonora dramática do filme 'A Origem', para momentos de revelação profunda ou algo que 'explode a mente'. (tags: inception, mente explodindo, drama)"
     },
     {
       "file": "MEANWHILE.mp3",
-      "description": "Som de transição de desenhos animados ('Enquanto isso...'), para mudar de assunto de forma cômica."
+      "description": "Som de transição de desenhos animados ('Enquanto isso...'), para mudar de assunto de forma cômica. (tags: meanwhile, cartoon, transição)"
     },
     {
       "file": "Metal Boom.mp3",
-      "description": "Um som de impacto metálico e pesado, para falhas ou momentos de grande impacto."
-    },
+      "description": "Um som de impacto metálico e pesado, para falhas ou momentos de grande impacto. (tags: impacto, falha, boom)"
+    }
     {
       "file": "MY LEG.mp3",
-      "description": "Meme do Bob Esponja ('Minha perna!'), para reagir de forma exagerada e cômica a uma dor ou problema pequeno."
+      "description": "Meme do Bob Esponja ('Minha perna!'), para reagir de forma exagerada e cômica a uma dor ou problema pequeno. (tags: my leg, dor, bob esponja, meme)"
     },
     {
       "file": "NO_GOD_PLEASE_NO.mp3",
-      "description": "Meme de The Office (Michael Scott), para expressar negação total, desespero ou horror a uma sugestão terrível."
+      "description": "Meme de The Office (Michael Scott), para expressar negação total, desespero ou horror a uma sugestão terrível. (tags: no god please no, office, negação, horror)"
     },
     {
       "file": "NOPE.mp3",
-      "description": "Um som simples e direto de 'não', para negar ou discordar de algo."
+      "description": "Um som simples e direto de 'não', para negar ou discordar de algo. (tags: nope, não, negação)"
     },
     {
       "file": "OH!!!!!!!.mp3",
-      "description": "Um som de exclamação e surpresa extrema."
+      "description": "Um som de exclamação e surpresa extrema. (tags: ohhhhh, surpresa, exclamação)"
     },
     {
       "file": "OH NO NO NO-Gargalhada.mp3",
-      "description": "Meme de áudio de uma risada enquanto se nega algo, ideal para rir da desgraça alheia (schadenfreude)."
+      "description": "Meme de áudio de uma risada enquanto se nega algo, ideal para rir da desgraça alheia (schadenfreude). (tags: oh no, risada, schadenfreude)"
     },
     {
       "file": "RIMSHOT-bateria.mp3",
-      "description": "Usado após uma piada ruim ou sem graça (som de bateria 'ba dum tss')."
+      "description": "Usado após uma piada ruim ou sem graça (som de bateria 'ba dum tss'). (tags: rimshot, piada ruim, ba dum tss)"
     },
     {
       "file": "Sadness-1.mp3",
-      "description": "Som de violino triste, para momentos de tristeza leve ou drama cômico."
+      "description": "Som de violino triste, para momentos de tristeza leve ou drama cômico. (tags: tristeza, violino, drama)"
     },
     {
       "file": "Sadness-2.mp3",
-      "description": "Som de violino triste, para momentos de tristeza média ou drama cômico."
+      "description": "Som de violino triste, para momentos de tristeza média ou drama cômico. (tags: tristeza, violino, drama)"
     },
     {
       "file": "Sadness-3.mp3",
-      "description": "Som de violino triste, para o ápice da tristeza ou do drama cômico."
+      "description": "Som de violino triste, para o ápice da tristeza ou do drama cômico. (tags: tristeza, violino, drama)"
     },
     {
       "file": "SHREK-SWAMP.mp3",
@@ -132,71 +132,71 @@
   "stickers": [
     {
       "file": "agindo-de-forma-suspeita.webp",
-      "description": "Para quando alguém está agindo de forma estranha, misteriosa ou suspeita."
+      "description": "Para quando alguém está agindo de forma estranha, misteriosa ou suspeita. (tags: suspeita, misterioso, estranho)"
     },
     {
       "file": "bravo.webp",
-      "description": "Para expressar que está bravo, irritado ou frustrado com algo."
+      "description": "Para expressar que está bravo, irritado ou frustrado com algo. (tags: bravo, irritado, raiva)"
     },
     {
       "file": "chorando-muito.webp",
-      "description": "Para expressar tristeza extrema, exagero dramático ou uma 'bad' muito forte."
+      "description": "Para expressar tristeza extrema, exagero dramático ou uma 'bad' muito forte. (tags: triste, chorar, drama, bad)"
     },
     {
       "file": "chorando-pouco.webp",
-      "description": "Para expressar uma tristeza leve, decepção ou 'chateação'."
+      "description": "Para expressar uma tristeza leve, decepção ou 'chateação'. (tags: triste, leve, chateado)"
     },
     {
       "file": "com-duvidas-sobre-um-assunto.webp",
-      "description": "Sticker para expressar dúvida ou confusão sobre o que foi dito."
+      "description": "Sticker para expressar dúvida ou confusão sobre o que foi dito. (tags: dúvida, confuso, não sei)"
     },
     {
       "file": "comendo-com-selfie.webp",
-      "description": "Para mostrar que está comendo algo gostoso, geralmente para provocar inveja."
+      "description": "Para mostrar que está comendo algo gostoso, geralmente para provocar inveja. (tags: comendo, foodie, inveja)"
     },
     {
       "file": "comendo.webp",
-      "description": "Para indicar que está na hora de comer, que está com fome ou que está fazendo uma pausa para o lanche."
+      "description": "Para indicar que está na hora de comer, que está com fome ou que está fazendo uma pausa para o lanche. (tags: comendo, fome, lanche)"
     },
     {
       "file": "emburrado.webp",
-      "description": "Para mostrar que está emburrado, de mau humor ou fazendo 'bico'."
+      "description": "Para mostrar que está emburrado, de mau humor ou fazendo 'bico'. (tags: emburrado, mau humor, bico)"
     },
     {
       "file": "entediado.webp",
-      "description": "Para expressar tédio ou que a conversa está monótona."
+      "description": "Para expressar tédio ou que a conversa está monótona. (tags: entediado, tédio, boring)"
     },
     {
       "file": "feliz.webp",
-      "description": "Para expressar felicidade, alegria, aprovação ou gratidão."
+      "description": "Para expressar felicidade, alegria, aprovação ou gratidão. (tags: feliz, alegria, grato)"
     },
     {
       "file": "livre-para-falar.webp",
-      "description": "Para avisar que agora você está disponível e pode conversar."
+      "description": "Para avisar que agora você está disponível e pode conversar. (tags: livre, disponível, falar)"
     },
     {
       "file": "passando-mal.webp",
-      "description": "Para reagir a algo nojento, vergonhoso (cringe) ou de mau gosto."
+      "description": "Para reagir a algo nojento, vergonhoso (cringe) ou de mau gosto. (tags: passando mal, cringe, nojento)"
     },
     {
       "file": "pedindo-desculpas.webp",
-      "description": "Um sticker para se desculpar por algo que disse ou fez."
+      "description": "Um sticker para se desculpar por algo que disse ou fez. (tags: desculpa, sorry, perdão)"
     },
     {
       "file": "preocupado-pensando.webp",
-      "description": "Para momentos de preocupação, reflexão sobre um problema ou ansiedade."
+      "description": "Para momentos de preocupação, reflexão sobre um problema ou ansiedade. (tags: preocupado, ansioso, pensando)"
     },
     {
       "file": "rindo-fininho.webp",
-      "description": "Para uma risada contida, irônica ou por ter entendido uma piada interna."
+      "description": "Para uma risada contida, irônica ou por ter entendido uma piada interna. (tags: rindo, irônico, risada fininha)"
     },
     {
       "file": "silenciado.webp",
-      "description": "Para indicar que foi 'calado' por alguém ou que prefere não opinar sobre um assunto polêmico."
+      "description": "Para indicar que foi 'calado' por alguém ou que prefere não opinar sobre um assunto polêmico. (tags: silenciado, quieto, sem voz)"
     },
     {
       "file": "surpreso.webp",
-      "description": "Para expressar surpresa, choque ou espanto com uma notícia ou mensagem."
+      "description": "Para expressar surpresa, choque ou espanto com uma notícia ou mensagem. (tags: surpreso, choque, espanto)"
     },
     {
       "file": "zangado.webp",

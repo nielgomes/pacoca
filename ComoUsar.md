@@ -91,6 +91,18 @@ Obs.:
 
 O modulo de pesquisa é acionado pela palavra-chave `/pesquisa [contexto]` exemplo: `/pesquisa Qual a cotação do dólar hoje?`
 
+# Comandos especiais de mídia e TTS
+
+Além dos comandos já existentes, o Paçoca agora aceita instruções que forçam um tipo específico de resposta, úteis para testes ou quando você quer controlar o formato manualmente:
+
+- `/tts <contexto>` – o Paçoca gera um texto com base no contexto e envia **ATEAVOZ** (audio TTS), ignorando qualquer heurística de tamanho ou cooldown.
+- `/meme <palavra-chave opcional>` – envia um meme aleatório da pasta `memes`; se você fornecer uma palavra-chave, o bot tenta escolher um arquivo cuja descrição ou nome contenha esse termo.
+- `/audio <palavra-chave opcional>` – semelhante ao `/meme`, mas escolhe um dos áudios pré‑gravados em `audios`.
+
+Estes comandos são processados antes da IA padrão e não contam como interações “normais” no histórico.
+
+# Como usar o módulo Puxar Assunto
+
 # Como usar o módulo Puxar Assunto
 
 Para pedir que o Paçoca 'puxe assunto' com alguem use o comando `/call [nr whatsapp] [contexto]`, onde:

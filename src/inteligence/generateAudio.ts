@@ -399,24 +399,111 @@ Lembre-se: O áudio deve ser curto (máx 10-15 segundos), natural como um adoles
  * @param hasMedia - Se a resposta inclui mídia (sticker, gif, etc)
  * @returns true se deve usar áudio, false se deve usar texto
  */
-export function shouldUseAudio(text: string, hasMedia: boolean): boolean {
+
+// histórico simples por sessão para controlar cooldown e contagem de mensagens
+interface AudioHistoryEntry {
+  lastAudioTs: number;            // timestamp da última vez que geramos áudio
+  messagesSinceLastAudio: number; // número de decisões desde o último áudio
+}
+const audioHistory: Map<string, AudioHistoryEntry> = new Map();
+
+/**
+ * Decide se a resposta deve ser em áudio com base no texto, mídia e contexto.
+ *
+ * Aplica uma heurística probabilística e um cooldown por sessão para evitar
+ * abusos de TTS. As regras adotadas:
+ *
+ * 1. Se houver qualquer mídia já escolhida, nunca gera áudio.
+ * 2. Faixas de comprimento de texto determinam uma chance base de áudio:
+ *    • 0–60 chars  → 0%
+ *    • 61–120      → 10%
+ *    • 121–180     → 25%
+ *    • 181–230     → 40%
+ *    • 231–249     → 15%
+ *    • >=250       → 0% (fora do limite padrão)
+ * 3. Se a sessão gerou áudio nos últimos 3 disparos, o próximo tem 0%.
+ * 4. Se o último áudio foi há menos de 5 minutos, a chance base é reduzida a
+ *    20% do original.
+ * 5. Quando o chat está muito ativo (muitas mensagens recentes), a chance
+ *    sofre um pequeno desconto.
+ * 6. A decisão final é feita comparando a base com Math.random().
+ *
+ * @param text             Texto da resposta gerada
+ * @param hasMedia         Se a resposta inclui mídia (sticker, gif, etc)
+ * @param sessionId        ID da sessão/grupo (usado para cooldown)
+ * @param recentMsgCount   Quantidade de mensagens recentes para avaliar
+ *                         atividade do grupo
+ */
+export function shouldUseAudio(
+  text: string,
+  hasMedia: boolean,
+  sessionId: string,
+  recentMsgCount: number
+): boolean {
   // Se tem mídia (sticker, gif, etc), não usa áudio
   if (hasMedia) {
     return false;
   }
-  
-  // Se o texto é menor que o limite, usa áudio
+
+  const now = Date.now();
+  let history = audioHistory.get(sessionId);
+  if (!history) {
+    history = { lastAudioTs: 0, messagesSinceLastAudio: 1000 };
+    audioHistory.set(sessionId, history);
+  }
+
+  // incrementa contagem de mensagens desde o último áudio
+  history.messagesSinceLastAudio += 1;
+
   const textLength = text.length;
-  const shouldUseAudio = textLength < AUDIO_VOICE_CONFIG.AUDIO_TEXT_LIMIT;
-  
+  let baseChance = 0;
+  if (textLength <= 60) {
+    baseChance = 0;
+  } else if (textLength <= 120) {
+    baseChance = 0.1;
+  } else if (textLength <= 180) {
+    baseChance = 0.25;
+  } else if (textLength <= 230) {
+    baseChance = 0.4;
+  } else if (textLength < AUDIO_VOICE_CONFIG.AUDIO_TEXT_LIMIT) {
+    baseChance = 0.15;
+  }
+
+  // cooldown: zero chance se já tivemos áudio em menos de 3 mensagens
+  if (history.messagesSinceLastAudio < 3) {
+    baseChance = 0;
+  }
+
+  // redução por tempo: se o último áudio foi há menos de 5min,
+  // diminui chance para 20% da base
+  if (now - history.lastAudioTs < 5 * 60 * 1000) {
+    baseChance *= 0.2;
+  }
+
+  // atividade do chat (quantas mensagens processadas recentemente)
+  if (recentMsgCount > 20) {
+    baseChance *= 0.8; // diminui um pouco em chats muito ativos
+  }
+
+  const decision = Math.random() < baseChance;
+
+  if (decision) {
+    history.lastAudioTs = now;
+    history.messagesSinceLastAudio = 0;
+  }
+
   beautifulLogger.aiGeneration("audio_decision", {
     textLength,
     limit: AUDIO_VOICE_CONFIG.AUDIO_TEXT_LIMIT,
-    shouldUseAudio,
+    baseChance,
+    decision,
+    history: { ...history },
+    recentMsgCount,
   });
 
-  return shouldUseAudio;
+  return decision;
 }
+
 
 /**
  * Limpa arquivos de áudio temporários mais antigos que X horas

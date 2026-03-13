@@ -11,6 +11,10 @@ import getHomeDir from "../utils/getHomeDir";
 import DEFAULT_MESSAGES from "../constants/DEFAULT_MESSAGES";
 import { memory } from "./MemoryManager";
 
+// necessário para forçar respostas de mídia
+import mediaCatalog from '../../media_catalog.json';
+import { convertAudioToOgg, generateAudioResponse } from "../inteligence/generateAudio";
+
 // Define um "pacote" de contexto que os comandos precisam para funcionar
 type CommandContext = {
     whatsapp: Whatsapp;
@@ -52,6 +56,15 @@ export async function handleCommand(content: string, context: CommandContext): P
         case '/silencio':
             await handleSilencioCommand(context);
             return { commandHandled: true, newSilencedState: true }; // Retorna o novo estado
+        case '/tts':
+            await handleTtsCommand(content, context);
+            return { commandHandled: true };
+        case '/meme':
+            await handleMemeCommand(content, context);
+            return { commandHandled: true };
+        case '/audio':
+            await handleAudioCommand(content, context);
+            return { commandHandled: true };
         case '/liberado':
             await handleLiberadoCommand(context);
             return { commandHandled: true, newSilencedState: false }; // Retorna o novo estado
@@ -201,6 +214,103 @@ async function handleSilencioCommand({ whatsapp, sessionId, currentMessages }: C
         name: "Paçoca", jid: "", ia: true,
     });
     beautifulLogger.actionSent("message", { conteúdo: DEFAULT_MESSAGES.SILENCED.substring(0, 50) });
+}
+
+
+// === helpers para comandos direcionados ===
+
+/**
+ * Escolhe um arquivo de mídia (meme ou áudio) com base em uma query opcional.
+ * Tenta corresponder descrição ou nome; se nada for encontrado, retorna aleatório.
+ */
+function pickMediaByQuery(
+    list: Array<{ file: string; description: string }>,
+    query: string
+): string | null {
+    if (query) {
+        const low = query.toLowerCase();
+        const found = list.find(
+            (item) =>
+                item.description.toLowerCase().includes(low) ||
+                item.file.toLowerCase().includes(low)
+        );
+        if (found) {
+            return found.file;
+        }
+    }
+    if (list.length === 0) return null;
+    const idx = Math.floor(Math.random() * list.length);
+    return list[idx].file;
+}
+
+async function handleTtsCommand(content: string, { whatsapp, sessionId, currentMessages }: CommandContext) {
+    const query = content.replace(/^\/tts\s*/i, '').trim();
+    if (!query) {
+        await whatsapp.sendText(sessionId, "Use /tts <contexto> para gerar áudio falando algo sobre o que você escreveu.");
+        return;
+    }
+
+    beautifulLogger.info("COMANDO /tts", `Gerando TTS forçado para contexto: "${query}"`);
+    try {
+        // gerar áudio diretamente a partir do texto informado
+        const audioObj = await generateAudioResponse(query, "");
+
+        await whatsapp.sendAudio(sessionId, audioObj.audioPathOgg || audioObj.audioPath);
+        currentMessages.push({
+            content: `(Paçoca): <enviou áudio via /tts: "${audioObj.transcript || query}">`,
+            name: "Paçoca", jid: "", ia: true,
+        });
+        beautifulLogger.actionSent("generated_audio", { arquivo: audioObj.audioPath });
+    } catch (err: any) {
+        beautifulLogger.error("COMANDO /tts", "Falha ao gerar áudio TTS", err);
+        await whatsapp.sendText(sessionId, "Desculpe, não consegui gerar o áudio 😢");
+    }
+}
+
+async function handleMemeCommand(content: string, { whatsapp, sessionId, currentMessages }: CommandContext) {
+    const query = content.replace(/^\/meme\s*/i, '').trim();
+    const choice = pickMediaByQuery(mediaCatalog.memes, query);
+    if (!choice) {
+        await whatsapp.sendText(sessionId, "Não há memes cadastrados na biblioteca 🤷");
+        return;
+    }
+
+    const memePath = path.join(getHomeDir(), "memes", choice);
+    try {
+        await fs.access(memePath);
+        await whatsapp.sendImage(sessionId, memePath);
+        currentMessages.push({ content: `(Paçoca): <enviou meme ${choice}>`, name: "Paçoca", jid: "", ia: true });
+        beautifulLogger.actionSent("meme", { arquivo: choice });
+    } catch {
+        beautifulLogger.warn("COMANDO /meme", `Arquivo de meme ${choice} não encontrado`);
+        await whatsapp.sendText(sessionId, `Desculpe, não achei o meme "${choice}" 😢`);
+    }
+}
+
+async function handleAudioCommand(content: string, { whatsapp, sessionId, currentMessages }: CommandContext) {
+    const query = content.replace(/^\/audio\s*/i, '').trim();
+    const choice = pickMediaByQuery(mediaCatalog.audios, query);
+    if (!choice) {
+        await whatsapp.sendText(sessionId, "Não há áudios cadastrados na biblioteca 🎵");
+        return;
+    }
+
+    const audioPath = path.join(getHomeDir(), "audios", choice);
+    try {
+        await fs.access(audioPath);
+        let sendPath = audioPath;
+        try {
+            sendPath = await convertAudioToOgg(audioPath);
+        } catch (convErr: any) {
+            beautifulLogger.warn("COMANDO /audio", `Falha na conversão de áudio, usando original`, { err: convErr.message });
+        }
+        await whatsapp.sendAudio(sessionId, sendPath);
+        currentMessages.push({ content: `(Paçoca): <enviou áudio ${choice}>`, name: "Paçoca", jid: "", ia: true });
+        beautifulLogger.actionSent("audio", { arquivo: choice });
+    } catch {
+        beautifulLogger.warn("COMANDO /audio", `Áudio ${choice} não encontrado`);
+        await whatsapp.sendText(sessionId, `Desculpe, não achei o áudio "${choice}" 🎵`);
+    }
 }
 
 async function handleLiberadoCommand({ whatsapp, sessionId, currentMessages }: CommandContext) {

@@ -460,7 +460,8 @@ try {
       const messageText = finalActions[0].message?.text || "";
       const replyTo = finalActions[0].message?.reply;
       
-      if (shouldUseAudio(messageText, hasMedia)) {
+      // decide baseado na heurística aprimorada, passando contexto
+      if (shouldUseAudio(messageText, hasMedia, sessionId, recentMessages.length)) {
         try {
           beautifulLogger.aiGeneration("audio", "Convertendo mensagem para áudio...");
           
