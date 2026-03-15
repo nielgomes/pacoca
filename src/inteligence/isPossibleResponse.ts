@@ -62,14 +62,57 @@ function tryParsePossibleResponse(content: string): { possible: boolean; reason:
     tryCandidates.push(extracted);
   }
 
-  // Reparo básico para JSON parcial: fecha chaves faltantes
+  // Reparo avançado para JSON parcial/truncado
   const startAt = cleaned.indexOf("{");
   if (startAt !== -1) {
     const partial = cleaned.slice(startAt);
+    
+    // Tenta extrair apenas o objeto JSON principal
+    const braceDepth = (str: string): number => {
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      for (const ch of str) {
+        if (inString) {
+          if (escaped) {
+            escaped = false;
+          } else if (ch === "\\") {
+            escaped = true;
+          } else if (ch === '"') {
+            inString = false;
+          }
+          continue;
+        }
+        if (ch === '"') {
+          inString = true;
+          continue;
+        }
+        if (ch === "{") depth++;
+        if (ch === "}") depth--;
+      }
+      return depth;
+    };
+    
     const opens = (partial.match(/\{/g) || []).length;
     const closes = (partial.match(/\}/g) || []).length;
+    
+    // Se faltam chaves de fechamento, tenta adicionar
     if (opens > closes) {
-      tryCandidates.push(partial + "}".repeat(opens - closes));
+      const missing = opens - closes;
+      tryCandidates.push(partial + "}".repeat(missing));
+    }
+    
+    // Se a string termina dentro de uma string não fechada, tenta fechar
+    if (partial.endsWith('"') && !partial.endsWith('":')) {
+      tryCandidates.push(partial + '"');
+    }
+    
+    // Tenta forçar fechar a string reason se estiver truncada
+    if (partial.includes('"reason":') && !partial.includes('"reason":"')) {
+      // Tenta adicionar a string reason se estiver truncada
+      const reasonIdx = partial.indexOf('"reason":');
+      const beforeReason = partial.slice(0, reasonIdx + 10);
+      tryCandidates.push(beforeReason + '"motivo qualquer"');
     }
   }
 
@@ -167,7 +210,7 @@ export default async function isPossibleResponse(data: SummaryData, messages: Me
           },
         ],
         response_format: responseSchema,
-        max_tokens: 30
+        max_tokens: 100
       });
     }, 3, 1000);
 

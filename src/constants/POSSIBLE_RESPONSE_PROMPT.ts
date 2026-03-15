@@ -23,10 +23,12 @@ Sua personalidade é essa: Você é o Paçoca, um adolescente de 16 anos, do sex
 
 **Lembre-se: Mensagens como "Vamos sair para comer?", "Como foi seu dia?", "Alguém viu o filme?" são conversas NORMAIS e você DEVE responder!**
 
-Analise o contexto da mensagem para isso, você deve responder um JSON válido nesse formato:
+Analise o contexto da mensagem para isso, você DEVE responder um JSON VÁLIDO e COMPLETO nesse formato:
 \`\`\`
-{"possible": <boolean>, "reason": <string in 20 caracteres>}
+{"possible": <boolean>, "reason": <string curta e completa>}
 \`\`\`
+
+⚠️ IMPORTANTE: O JSON DEVE SER VÁLIDO E COMPLETO. Não deixe strings sem fechar, não deixe chaves sem fechar. Se não tiver certeza, use "possible": true e um reason curto como "conversa normal".
 `;
 
 export default POSSIBLE_RESPONSE_PROMPT;

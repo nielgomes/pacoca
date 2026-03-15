@@ -414,34 +414,47 @@ const audioHistory: Map<string, AudioHistoryEntry> = new Map();
  * abusos de TTS. As regras adotadas:
  *
  * 1. Se houver qualquer mídia já escolhida, nunca gera áudio.
- * 2. Faixas de comprimento de texto determinam uma chance base de áudio:
- *    • 0–60 chars  → 0%
+ * 2. Se o texto for muito curto (<=60 chars), NÃO usa áudio (prefere mensagem de texto).
+ * 3. Faixas de comprimento de texto determinam uma chance base de áudio:
  *    • 61–120      → 10%
  *    • 121–180     → 25%
  *    • 181–230     → 40%
  *    • 231–249     → 15%
  *    • >=250       → 0% (fora do limite padrão)
- * 3. Se a sessão gerou áudio nos últimos 3 disparos, o próximo tem 0%.
- * 4. Se o último áudio foi há menos de 5 minutos, a chance base é reduzida a
+ * 4. Se a sessão gerou áudio nos últimos 3 disparos, o próximo tem 0%.
+ * 5. Se o último áudio foi há menos de 5 minutos, a chance base é reduzida a
  *    20% do original.
- * 5. Quando o chat está muito ativo (muitas mensagens recentes), a chance
+ * 6. Quando o chat está muito ativo (muitas mensagens recentes), a chance
  *    sofre um pequeno desconto.
- * 6. A decisão final é feita comparando a base com Math.random().
+ * 7. A decisão final é feita comparando a base com Math.random().
  *
  * @param text             Texto da resposta gerada
  * @param hasMedia         Se a resposta inclui mídia (sticker, gif, etc)
  * @param sessionId        ID da sessão/grupo (usado para cooldown)
  * @param recentMsgCount   Quantidade de mensagens recentes para avaliar
  *                         atividade do grupo
+ * @param lastUserMessageType Tipo da última mensagem do usuário ("text"|"audio"|"image")
  */
 export function shouldUseAudio(
   text: string,
   hasMedia: boolean,
   sessionId: string,
-  recentMsgCount: number
+  recentMsgCount: number,
+  lastUserMessageType: "text" | "audio" | "image" = "text"
 ): boolean {
-  // Se tem mídia (sticker, gif, etc), não usa áudio
+  // Se houver mídia já escolhida, NÃO usa áudio
   if (hasMedia) {
+    return false;
+  }
+
+  // Se a última mensagem do usuário foi áudio, NÃO usa áudio do catálogo
+  // (o áudio do catálogo só para memes específicos, não para responder perguntas)
+  if (lastUserMessageType === "audio") {
+    return false;
+  }
+
+  // Se o texto for muito curto, prefere mensagem de texto
+  if (text.length <= 60) {
     return false;
   }
 
@@ -485,6 +498,9 @@ export function shouldUseAudio(
     baseChance *= 0.8; // diminui um pouco em chats muito ativos
   }
 
+  // Chance muito baixa para garantir que áudio só seja usado quando realmente adequado
+  baseChance = Math.min(baseChance, 0.3);
+
   const decision = Math.random() < baseChance;
 
   if (decision) {
@@ -499,6 +515,7 @@ export function shouldUseAudio(
     decision,
     history: { ...history },
     recentMsgCount,
+    lastUserMessageType,
   });
 
   return decision;

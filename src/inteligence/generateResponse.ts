@@ -460,8 +460,15 @@ try {
       const messageText = finalActions[0].message?.text || "";
       const replyTo = finalActions[0].message?.reply;
       
+      // Obtém o tipo da última mensagem do usuário para contexto
+      const lastUserMessage = recentMessages.length > 0 ? recentMessages[recentMessages.length - 1] : null;
+      const lastUserMessageType = lastUserMessage?.ia ? "text" : "text"; // Se não for IA, é do usuário
+      // Se a última mensagem for [Contexto da audio], considera como áudio
+      const lastContent = lastUserMessage?.content || "";
+      const isLastAudioContext = lastContent.includes("[Contexto da audio");
+      
       // decide baseado na heurística aprimorada, passando contexto
-      if (shouldUseAudio(messageText, hasMedia, sessionId, recentMessages.length)) {
+      if (shouldUseAudio(messageText, hasMedia, sessionId, recentMessages.length, isLastAudioContext ? "audio" : "text")) {
         try {
           beautifulLogger.aiGeneration("audio", "Convertendo mensagem para áudio...");
           
