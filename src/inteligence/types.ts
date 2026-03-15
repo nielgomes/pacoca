@@ -3,6 +3,7 @@ export interface Message {
   name: string | undefined;
   ia: boolean;
   jid: string;
+  fromBot?: boolean;
 }
 
 export interface BotAction {

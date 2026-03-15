@@ -118,7 +118,18 @@ export default async function rapy(whatsapp: Whatsapp) {
         console.log("🕵️ DEBUG: Ações recebidas da IA para execução:", JSON.stringify(result.actions, null, 2));
 
         // DELEGA A EXECUÇÃO PARA O MÓDULO ESPECIALISTA
-        await executeActions(result.actions, { whatsapp, sessionId, currentMessages, isGroup });
+                await executeActions(result.actions, {
+                    whatsapp,
+                    sessionId,
+                    currentMessages,
+                    isGroup,
+                    onActionRecorded: () => {
+                        memory.trimSessionMessages(sessionId, isGroup, 30);
+                    },
+                });
+
+                // Garantia final: mantém apenas janela curta de contexto recente
+                memory.trimSessionMessages(sessionId, isGroup, 30);
 
         // Se a resposta foi em um chat privado, atualize o timer de atividade
         if (!isGroup) {
@@ -203,6 +214,7 @@ if (type === "audio" || type === "image") {
                     name: senderName,
                     jid: senderJid,
                     ia: false,
+                    fromBot: false,
                 });
             }
             
@@ -212,6 +224,7 @@ if (type === "audio" || type === "image") {
               name: "Contexto",
               jid: "",
               ia: true,
+                            fromBot: false,
             };
             currentMessages.push(contextMessage);
 
@@ -277,6 +290,7 @@ if (type === "audio" || type === "image") {
           name: senderName,
           jid: senderJid,
           ia: false,
+          fromBot: false,
       });
 
       // Atualizar o histórico de atividade do grupo para detecção de conversas ativas

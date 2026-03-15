@@ -49,10 +49,25 @@ type ActionContext = {
     sessionId: string;
     currentMessages: Message[];
     isGroup: boolean;
+    onActionRecorded?: () => void;
 };
 
 export async function executeActions(response: BotResponse, context: ActionContext) {
-    const { whatsapp, sessionId, currentMessages } = context;
+    const { whatsapp, sessionId, currentMessages, onActionRecorded } = context;
+
+    const appendBotContext = (content: string) => {
+        currentMessages.push({
+            content,
+            name: "Paçoca",
+            jid: "",
+            ia: true,
+            fromBot: true,
+        });
+
+        // Mantém o histórico enxuto imediatamente após cada ação
+        memory.trimMessages();
+        onActionRecorded?.();
+    };
 
     for (const action of response) {
         console.log(`🕵️ DEBUG: Processando ação do tipo: ${action.type}`);
@@ -63,20 +78,20 @@ export async function executeActions(response: BotResponse, context: ActionConte
             if (action.message.reply && realMessageId) {
                 const message = action.message.text;
                 await whatsapp.sendTextReply(sessionId, realMessageId, message);
-                currentMessages.push({ content: `(Paçoca): ${message}`, name: "Paçoca", jid: "", ia: true });
+                appendBotContext(`(Paçoca): ${message}`);
                 beautifulLogger.actionSent("message", { tipo: "resposta", conteúdo: message.substring(0, 50) });
             } else {
                 const message = action.message.text;
                 console.log(`🕵️ DEBUG: Preparando para enviar mensagem normal: "${message}"`);
                 await whatsapp.sendText(sessionId, message);
-                currentMessages.push({ content: `(Paçoca): ${message}`, name: "Paçoca", jid: "", ia: true });
+                appendBotContext(`(Paçoca): ${message}`);
                 beautifulLogger.actionSent("message", { tipo: "mensagem normal", conteúdo: message.substring(0, 50) });
             }
         } else if (action.sticker) {
             const stickerPath = await findMediaPath("stickers", action.sticker);
             if (stickerPath) {
                 await whatsapp.sendSticker(sessionId, stickerPath);
-                currentMessages.push({ content: `(Paçoca): <usou o sticker ${action.sticker}>`, name: "Paçoca", jid: "", ia: true });
+                appendBotContext(`(Paçoca): <usou o sticker ${action.sticker}>`);
                 beautifulLogger.actionSent("sticker", { arquivo: action.sticker });
             } else {
                 // Log de erro silencioso corrigido - agora notifica o usuário
@@ -94,7 +109,7 @@ export async function executeActions(response: BotResponse, context: ActionConte
                     beautifulLogger.warn("AUDIO_CONVERT", `Falha ao converter ${action.audio} para OGG, enviando original`, { error: convertError.message });
                 }
                 await whatsapp.sendAudio(sessionId, sendPath);
-                currentMessages.push({ content: `(Paçoca): <enviou o áudio ${action.audio}>`, name: "Paçoca", jid: "", ia: true });
+                appendBotContext(`(Paçoca): <enviou o áudio ${action.audio}>`);
                 beautifulLogger.actionSent("audio", { arquivo: action.audio });
             } else {
                 beautifulLogger.warn("AUDIO", `Áudio '${action.audio}' não encontrado.`);
@@ -114,12 +129,7 @@ export async function executeActions(response: BotResponse, context: ActionConte
                 const realMessageId = replyTo ? memory.getMessageId(replyTo) : undefined;
                 
                 await whatsapp.sendAudio(sessionId, audioPath, realMessageId);
-                currentMessages.push({ 
-                    content: `(Paçoca): <enviou áudio gerado: "${transcript.substring(0, 50)}...">`, 
-                    name: "Paçoca", 
-                    jid: "", 
-                    ia: true 
-                });
+                appendBotContext(`(Paçoca): <enviou áudio gerado: "${transcript.substring(0, 50)}...">`);
                 beautifulLogger.actionSent("generated_audio", { 
                     arquivo: audioPath,
                     transcript: transcript.substring(0, 100),
@@ -140,7 +150,7 @@ export async function executeActions(response: BotResponse, context: ActionConte
             const memePath = await findMediaPath("memes", action.meme);
             if (memePath) {
                 await whatsapp.sendImage(sessionId, memePath);
-                currentMessages.push({ content: `(Paçoca): <enviou o meme ${action.meme}>`, name: "Paçoca", jid: "", ia: true });
+                appendBotContext(`(Paçoca): <enviou o meme ${action.meme}>`);
                 beautifulLogger.actionSent("meme", { arquivo: action.meme });
             } else {
                 beautifulLogger.warn("MEME", `Meme '${action.meme}' não encontrado.`);
@@ -150,24 +160,14 @@ export async function executeActions(response: BotResponse, context: ActionConte
             // Lógica para criar uma enquete
             await whatsapp.createPoll(sessionId, action.poll.question, action.poll.options);
 
-            currentMessages.push({
-              content: `(Paçoca): <criou uma enquete: ${action.poll.question}>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
+                        appendBotContext(`(Paçoca): <criou uma enquete: ${action.poll.question}>`);
             beautifulLogger.actionSent("poll", {
               pergunta: action.poll.question,
               opções: action.poll.options.join(", "),
             });
         } else if (action.location) {
             // Lógica para enviar uma localização
-            currentMessages.push({
-              content: `(Paçoca): <enviou uma localização (${action.location.latitude}, ${action.location.longitude})>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
+                        appendBotContext(`(Paçoca): <enviou uma localização (${action.location.latitude}, ${action.location.longitude})>`);
             await whatsapp.sendLocation(
               sessionId,
               action.location.latitude,
@@ -178,12 +178,7 @@ export async function executeActions(response: BotResponse, context: ActionConte
             });
         } else if (action.contact) {
             // Lógica para enviar um contato
-            currentMessages.push({
-              content: `(Paçoca): <enviou um contato (${action.contact.name} (${action.contact.cell}))>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
+                        appendBotContext(`(Paçoca): <enviou um contato (${action.contact.name} (${action.contact.cell}))>`);
             await whatsapp.sendContact(sessionId, action.contact.cell, action.contact.name);
             beautifulLogger.actionSent("contact", {
               nome: action.contact.name,
@@ -195,12 +190,7 @@ export async function executeActions(response: BotResponse, context: ActionConte
             console.log(`🕵️ DEBUG [GIF]: URL: ${action.gif.url}`);
             console.log(`🕵️ DEBUG [GIF]: É MP4: ${action.gif.isMp4}`);
             
-            currentMessages.push({
-              content: `(Paçoca): <enviou um GIF: ${action.gif.title}>`,
-              name: "Paçoca",
-              jid: "",
-              ia: true,
-            });
+                        appendBotContext(`(Paçoca): <enviou um GIF: ${action.gif.title}>`);
             
             // O WhatsApp precisa de MP4 com gifPlayback para GIFs animados
             try {

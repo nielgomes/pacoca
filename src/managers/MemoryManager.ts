@@ -4,6 +4,7 @@ import { Message } from "../inteligence/types";
 const MAX_GROUP_MESSAGES = 100;
 const MAX_PRIVATE_MESSAGES = 50;
 const MAX_MESSAGE_IDS = 500;
+const MAX_CONTEXT_MESSAGES = 30;
 
 // O estado do bot agora vive dentro deste módulo
 const state = {
@@ -81,6 +82,18 @@ export const memory = {
             const entries = Array.from(state.messageIds.entries());
             state.messageIds = new Map(entries.slice(-MAX_MESSAGE_IDS));
         }
+    },
+
+    // Limita contexto de uma sessão específica para evitar contaminação de tema
+    trimSessionMessages: (sessionId: string, isGroup: boolean, maxContext: number = MAX_CONTEXT_MESSAGES) => {
+        if (isGroup) {
+            state.groupMessages = trimArray(state.groupMessages, maxContext);
+            return;
+        }
+
+        if (!state.privateMessages.has(sessionId)) return;
+        const messages = state.privateMessages.get(sessionId)!;
+        state.privateMessages.set(sessionId, trimArray(messages, maxContext));
     },
 
     // Outros getters e setters que ṕodem ser úteis
