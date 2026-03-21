@@ -16,3 +16,23 @@ services:
     # Isso evita que você tenha que escanear o QR Code toda vez que o contêiner for reiniciado
     volumes:
       - ./whatsapp_session:/usr/src/app/whatsapp_session
+    # Mapeia portas (opcional, para debug ou API)
+    ports:
+      - "3000:3000"
+    # Configurações de rede
+    networks:
+      - pacoca-network
+    # Configurações de recursos (opcional)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+# Define uma rede personalizada para o container
+networks:
+  pacoca-network:
+    driver: bridge

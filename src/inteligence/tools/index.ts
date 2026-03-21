@@ -6,6 +6,17 @@ import { Message } from "../types";
 import mediaCatalog from '../../../media_catalog.json';
 import { searchGifs, pickRandomGif, getBestGifUrl, getBestGifMp4Url } from "../../services/giphy";
 import { generateAudioResponse } from "../generateAudio";
+import { 
+  SendMessageSchema, 
+  SendStickerSchema, 
+  SendAudioSchema,
+  SendMemeImageSchema,
+  CreatePollSchema,
+  SendLocationSchema,
+  SendContactSchema,
+  SendGifSchema,
+  GenerateAudioSchema
+} from "./schemas";
 
 // Re-exporta para compatibilidade
 export { getOpenAITools };
@@ -64,13 +75,12 @@ function extractGifSearchTerms(analysis: string, userRequest?: string): string {
  */
 @tool({
   description: "Envia uma mensagem de texto no chat.",
-  validate: true
+  validate: true,
+  schema: SendMessageSchema
 })
-async function send_message(
-  ctx: ToolContext,
-  text: string,
-  reply_to_id?: string
-) {
+async function send_message(ctx: ToolContext, data: { text: string; reply_to_id?: string }) {
+  const { text, reply_to_id } = data;
+  
   if (reply_to_id) {
     const realMessageId = ctx.memory.getMessageId(reply_to_id);
     if (realMessageId) {
@@ -100,9 +110,11 @@ async function send_message(
  */
 @tool({
   description: "Envia um sticker (figurinha) para expressar uma emoção.",
-  validate: true
+  validate: true,
+  schema: SendStickerSchema
 })
-async function send_sticker(ctx: ToolContext, sticker_name: string) {
+async function send_sticker(ctx: ToolContext, data: { sticker_name: string }) {
+  const { sticker_name } = data;
   const stickerPath = findMediaPath("stickers", sticker_name);
   
   if (!stickerPath) {
@@ -127,9 +139,11 @@ async function send_sticker(ctx: ToolContext, sticker_name: string) {
  */
 @tool({
   description: "Envia um meme de áudio curto do catálogo. Use apenas quando o áudio for claramente relevante ao contexto.",
-  validate: true
+  validate: true,
+  schema: SendAudioSchema
 })
-async function send_audio(ctx: ToolContext, audio_name: string) {
+async function send_audio(ctx: ToolContext, data: { audio_name: string }) {
+  const { audio_name } = data;
   const audioPath = findMediaPath("audios", audio_name);
   
   if (!audioPath) {
@@ -154,9 +168,11 @@ async function send_audio(ctx: ToolContext, audio_name: string) {
  */
 @tool({
   description: "Envia uma imagem de meme (.jpg).",
-  validate: true
+  validate: true,
+  schema: SendMemeImageSchema
 })
-async function send_meme_image(ctx: ToolContext, meme_name: string) {
+async function send_meme_image(ctx: ToolContext, data: { meme_name: string }) {
+  const { meme_name } = data;
   const memePath = findMediaPath("memes", meme_name);
   
   if (!memePath) {
@@ -181,13 +197,11 @@ async function send_meme_image(ctx: ToolContext, meme_name: string) {
  */
 @tool({
   description: "Cria uma enquete no chat.",
-  validate: true
+  validate: true,
+  schema: CreatePollSchema
 })
-async function create_poll(
-  ctx: ToolContext,
-  question: string,
-  options: [string, string, string]
-) {
+async function create_poll(ctx: ToolContext, data: { question: string; options: [string, string, string] }) {
+  const { question, options } = data;
   await ctx.whatsapp.createPoll(ctx.sessionId, question, options);
   
   ctx.currentMessages.push({
@@ -206,9 +220,11 @@ async function create_poll(
  */
 @tool({
   description: "Envia uma localização geográfica.",
-  validate: true
+  validate: true,
+  schema: SendLocationSchema
 })
-async function send_location(ctx: ToolContext, latitude: number, longitude: number) {
+async function send_location(ctx: ToolContext, data: { latitude: number; longitude: number }) {
+  const { latitude, longitude } = data;
   await ctx.whatsapp.sendLocation(ctx.sessionId, latitude, longitude);
   
   ctx.currentMessages.push({
@@ -227,9 +243,11 @@ async function send_location(ctx: ToolContext, latitude: number, longitude: numb
  */
 @tool({
   description: "Envia um cartão de contato.",
-  validate: true
+  validate: true,
+  schema: SendContactSchema
 })
-async function send_contact(ctx: ToolContext, name: string, cell: string) {
+async function send_contact(ctx: ToolContext, data: { name: string; cell: string }) {
+  const { name, cell } = data;
   await ctx.whatsapp.sendContact(ctx.sessionId, cell, name);
   
   ctx.currentMessages.push({
@@ -248,13 +266,11 @@ async function send_contact(ctx: ToolContext, name: string, cell: string) {
  */
 @tool({
   description: "Busca e envia um GIF do Giphy (internet animada).",
-  validate: true
+  validate: true,
+  schema: SendGifSchema
 })
-async function send_gif(
-  ctx: ToolContext,
-  search_query: string,
-  quantity: number = 1
-) {
+async function send_gif(ctx: ToolContext, data: { search_query: string; quantity?: number }) {
+  const { search_query, quantity = 1 } = data;
   try {
     const gifs = await searchGifs(search_query, quantity);
     
@@ -295,13 +311,11 @@ async function send_gif(
  */
 @tool({
   description: "Gera e envia um áudio com TTS (text-to-speech).",
-  validate: true
+  validate: true,
+  schema: GenerateAudioSchema
 })
-async function generate_audio(
-  ctx: ToolContext,
-  text: string,
-  reply_to_id?: string
-) {
+async function generate_audio(ctx: ToolContext, data: { text: string; reply_to_id?: string }) {
+  const { text, reply_to_id } = data;
   try {
     const audioObj = await generateAudioResponse(text, "");
     

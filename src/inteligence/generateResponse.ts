@@ -164,10 +164,141 @@ function extractGifSearchTerms(analysis: string, userRequest?: string): string {
     return "reação";
 }
 
-// --- DEFINIÇÃO DAS FERRAMENTAS (NOVO SISTEMA COM DECORATORS) ---
-// As tools agora são definidas em src/inteligence/tools/index.ts com decorators
-// Aqui usamos o wrapper para manter compatibilidade
-export { tools };
+// --- DEFINIÇÃO DAS FERRAMENTAS ---
+const tools: ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "send_message",
+      description: "Envia uma mensagem de texto no chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "O conteúdo da mensagem de texto a ser enviada (máx 300 caracteres).",
+          },
+          reply_to_id: {
+            type: "string",
+            description: "O ID da mensagem à qual esta mensagem deve responder (opcional).",
+          },
+        },
+        required: ["text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_sticker",
+      description: "Envia um sticker (figurinha) para expressar uma emoção.",
+      parameters: {
+        type: "object",
+        properties: {
+          sticker_name: {
+            type: "string",
+            description: "O nome exato do arquivo do sticker (ex: 'feliz.webp').",
+            enum: stickerOptions, // Usamos a lista carregada do mediaCatalog
+          },
+        },
+        required: ["sticker_name"],
+      },
+    },
+  },
+    {
+    type: "function",
+    function: {
+      name: "send_audio",
+        description: "Envia um meme de áudio curto do catálogo. Use apenas quando o áudio for claramente relevante ao contexto e mais engraçado/adequado que uma resposta em texto.",
+      parameters: {
+        type: "object",
+        properties: {
+          audio_name: {
+            type: "string",
+            description: "O nome exato do arquivo de áudio (ex: 'WINDOWS-STARTUP.mp3').",
+            enum: audioOptions,
+          },
+        },
+        required: ["audio_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_meme_image",
+      description: "Envia uma imagem de meme (.jpg).",
+      parameters: {
+        type: "object",
+        properties: {
+          meme_name: {
+            type: "string",
+            description: "O nome exato do arquivo da imagem do meme (ex: 'ai-que-burro-da-zero-pra-ele.jpg').",
+            enum: memeOptions,
+          },
+        },
+        required: ["meme_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_poll",
+      description: "Cria uma enquete no chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "A pergunta da enquete." },
+          options: {
+            type: "array",
+            description: "Uma lista de exatamente 3 opções de texto para a enquete.",
+            items: { type: "string" },
+            minItems: 3,
+            maxItems: 3,
+          },
+        },
+        required: ["question", "options"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_location",
+      description: "Envia uma localização geográfica.",
+      parameters: {
+        type: "object",
+        properties: {
+          latitude: { type: "number", description: "A latitude." },
+          longitude: { type: "number", description: "A longitude." },
+        },
+        required: ["latitude", "longitude"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_contact",
+      description: "Envia um cartão de contato.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "O nome a ser exibido no cartão de contato." },
+          cell: { type: "string", description: "O número de telefone no formato internacional (ex: +5561999999999)." },
+        },
+        required: ["cell", "name"], // Tornando name obrigatório aqui
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_gif",
+      description: `Busca e envia um GIF do Giphy (internet animada).
+
+⚠️ IMPORTANTE: Use esta ferramenta APENAS para:
   - Gifs que o usuário PEDIU explicitamente (ex: "manda um gif de parabéns", "me envia um gif engraçado")
   - Reações/emojis animados a uma situação (ex: ver foto de gato → GIF de gato)
   - Expressar emoções de forma animada

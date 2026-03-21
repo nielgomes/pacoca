@@ -1,4 +1,5 @@
 import { RegisteredTool, ToolContext, ToolFunction, ToolOptions } from "./types";
+import { validateData } from "./schemas";
 
 // Armazena todas as tools registradas
 const registeredTools: RegisteredTool[] = [];
@@ -6,24 +7,29 @@ const registeredTools: RegisteredTool[] = [];
 /**
  * Decorator para registrar tools
  * 
- * @param options - Opções da tool (descrição, validação)
+ * @param options - Opções da tool (descrição, validação, schema Zod)
  * @returns Method decorator
  */
-export function tool(options: ToolOptions) {
+export function tool(options: ToolOptions & { schema?: any }) {
   return function(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalFn = descriptor.value;
     
     // Validação com Zod se solicitado
     let wrappedFn: ToolFunction = originalFn;
     
-    if (options.validate) {
+    if (options.validate && options.schema) {
       wrappedFn = async (ctx: ToolContext, ...args: any[]) => {
-        try {
-          return await originalFn(ctx, ...args);
-        } catch (error: any) {
-          console.error(`❌ Erro na tool ${propertyKey}:`, error.message);
-          throw error;
+        // Valida o primeiro argumento (data) com Zod
+        if (args.length > 0) {
+          const validation = validateData(options.schema, args[0]);
+          if (!validation.success) {
+            console.error(`❌ Validação falhou na tool ${propertyKey}:`, validation.error);
+            throw new Error(validation.error);
+          }
+          // Usa dados validados
+          return await originalFn(ctx, validation.data, ...args.slice(1));
         }
+        return await originalFn(ctx, ...args);
       };
     }
     
@@ -31,7 +37,7 @@ export function tool(options: ToolOptions) {
       name: propertyKey,
       fn: wrappedFn,
       description: options.description,
-      schema: generateSchemaFromFn(originalFn), // Gera schema a partir dos tipos
+      schema: options.schema || generateSchemaFromFn(originalFn),
     });
     
     return descriptor;
