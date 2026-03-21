@@ -1,8 +1,9 @@
 import { RegisteredTool, ToolContext, ToolFunction, ToolOptions } from "./types";
 import { validateData } from "./schemas";
+import { allTools } from "./registeredTools";
 
 // Armazena todas as tools registradas
-const registeredTools: RegisteredTool[] = [];
+const registeredTools: RegisteredTool[] = allTools;
 
 /**
  * Decorator para registrar tools
