@@ -15,7 +15,7 @@ function getToolName(actionType: string): string | null {
     poll: 'create_poll',
     location: 'send_location',
     contact: 'send_contact',
-    gif: 'send_gif',
+    gif: 'send_existing_gif', // Envia GIF já buscado (não busca novamente)
     generated_audio: 'generate_audio',
   };
   

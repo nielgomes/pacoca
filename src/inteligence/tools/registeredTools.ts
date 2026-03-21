@@ -7,6 +7,7 @@ import { memory } from "../../managers/MemoryManager";
 import { searchGifs, pickRandomGif, getBestGifUrl, getBestGifMp4Url } from "../../services/giphy";
 import { generateAudioResponse } from "../generateAudio";
 import { findMediaPath } from "./executor";
+import { z } from "zod";
 import { SendMessageSchema, SendStickerSchema, SendAudioSchema, SendMemeImageSchema, CreatePollSchema, SendLocationSchema, SendContactSchema, SendGifSchema, GenerateAudioSchema, validateData } from "./schemas";
 
 // Função auxiliar para criar tools
@@ -34,6 +35,46 @@ function createTool<T>(
 }
 
 // --- TOOLS REGISTRADAS ---
+
+// --- Tool para enviar GIF já buscado (não busca novamente) ---
+const send_existing_gif = createTool(
+  "send_existing_gif",
+  "Envia um GIF já buscado (não busca novamente). Use quando o GIF já foi obtido.",
+  z.object({
+    url: z.string().url().describe("URL do GIF/MP4 para envio"),
+    title: z.string().describe("Título do GIF"),
+    altText: z.string().optional().describe("Texto alternativo"),
+    pageUrl: z.string().url().optional().describe("URL da página do Giphy"),
+    isMp4: z.boolean().optional().describe("Indica se é um vídeo MP4"),
+  }),
+  async (ctx, data: { url: string; title: string; altText?: string; pageUrl?: string; isMp4?: boolean }) => {
+    const { url, title, isMp4 = false } = data;
+    
+    try {
+      await ctx.whatsapp.sendGif(ctx.sessionId, url, isMp4);
+      
+      ctx.currentMessages.push({
+        content: `<enviou um GIF: ${title}>`,
+        name: "Paçoca",
+        jid: "",
+        ia: true,
+        fromBot: true,
+      });
+      
+      return { 
+        success: true, 
+        gif: { 
+          title,
+          url,
+          isMp4,
+          pageUrl: data.pageUrl || ''
+        } 
+      };
+    } catch (error: any) {
+      return { success: false, error: `Falha ao enviar GIF: ${error.message}` };
+    }
+  }
+);
 
 const send_message = createTool(
   "send_message",
@@ -282,6 +323,7 @@ const generate_audio = createTool(
 
 // Exporta todas as tools
 export const allTools: RegisteredTool[] = [
+  send_existing_gif,
   send_message,
   send_sticker,
   send_audio,
@@ -294,4 +336,4 @@ export const allTools: RegisteredTool[] = [
 ];
 
 // Exporta funções auxiliares
-export { send_message, send_sticker, send_audio, send_meme_image, create_poll, send_location, send_contact, send_gif, generate_audio };
+export { send_existing_gif, send_message, send_sticker, send_audio, send_meme_image, create_poll, send_location, send_contact, send_gif, generate_audio };
