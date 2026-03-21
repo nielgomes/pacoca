@@ -37,17 +37,23 @@ function createTool<T>(
 // --- TOOLS REGISTRADAS ---
 
 // --- Tool para enviar GIF já buscado (não busca novamente) ---
-const send_existing_gif = createTool(
-  "send_existing_gif",
-  "Envia um GIF já buscado (não busca novamente). Use quando o GIF já foi obtido.",
-  z.object({
-    url: z.string().url().describe("URL do GIF/MP4 para envio"),
-    title: z.string().describe("Título do GIF"),
-    altText: z.string().optional().describe("Texto alternativo"),
-    pageUrl: z.string().url().optional().describe("URL da página do Giphy"),
-    isMp4: z.boolean().optional().describe("Indica se é um vídeo MP4"),
-  }).strip(), // Remove campos desconhecidos
-  async (ctx, data: { url: string; title: string; altText?: string; pageUrl?: string; isMp4?: boolean }) => {
+// --- Tool para enviar GIF já buscado (não busca novamente) ---
+const send_existing_gif: RegisteredTool = {
+  name: "send_existing_gif",
+  description: "Envia um GIF já buscado (não busca novamente). Use quando o GIF já foi obtido.",
+  schema: {
+    type: "object",
+    properties: {
+      url: { type: "string", description: "URL do GIF/MP4 para envio" },
+      title: { type: "string", description: "Título do GIF" },
+      altText: { type: "string", description: "Texto alternativo" },
+      pageUrl: { type: "string", description: "URL da página do Giphy" },
+      isMp4: { type: "boolean", description: "Indica se é um vídeo MP4" },
+    },
+    required: ["url", "title"],
+  },
+  fn: async (ctx: ToolContext, ...args: any[]) => {
+    const data = args[0] || {};
     const { url, title, isMp4 = false } = data;
     
     try {
@@ -74,7 +80,7 @@ const send_existing_gif = createTool(
       return { success: false, error: `Falha ao enviar GIF: ${error.message}` };
     }
   }
-);
+};
 
 const send_message = createTool(
   "send_message",
