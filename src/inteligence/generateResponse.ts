@@ -58,6 +58,90 @@ const formatDataForPrompt = (data: SummaryData): string => {
   return formattedData.trim();
 };
 
+// --- FUNÇÃO DE EXTRAÇÃO DE TERMOS PARA GIF ---
+/**
+ * Extrai termos relevantes de uma análise de mídia para usar em busca de GIFs.
+ * 
+ * @param analysis - Texto da análise de mídia (ex: "foto de bolo de aniversário com velas")
+ * @param userRequest - Pedido explícito do usuário (opcional, ex: "manda um gif de parabéns")
+ * @returns Termos de busca otimizados para GIF
+ */
+function extractGifSearchTerms(analysis: string, userRequest?: string): string {
+    // Se houver pedido explícito, dar prioridade total a ele
+    if (userRequest) {
+        // Limpar pedido explícito de GIF
+        const cleanRequest = userRequest
+            .toLowerCase()
+            .replace(/manda(?:ão)?(?: um)?(?: gif)? de[s]?/gi, "")
+            .replace(/me envia(?: um)?(?: gif)? de/gi, "")
+            .replace(/gif de/gi, "")
+            .replace(/gif do/gi, "")
+            .replace(/quiero ver un gif de/gi, "")
+            .replace(/want to see a gif of/gi, "")
+            .replace(/can i see a gif of/gi, "")
+            .trim();
+        
+        if (cleanRequest.length > 0 && cleanRequest.length < 50) {
+            return cleanRequest;
+        }
+    }
+    
+    // Mapeamento de análise → termos de GIF
+    const termMappings: [RegExp, string][] = [
+        // Aniversário e celebração
+        [/aniversário|parabéns|bolo|velas|felicitações|celebração|festa/gi, "aniversário"],
+        // Emoções positivas
+        [/rindo|rir|muit[ao] divertid[oa]|gargalhada|risada/gi, "risada"],
+        [/feliz|contente|alegre|emoção|joy|celebrando/gi, "feliz"],
+        [/surpres[oa]|impressionad[oa]|shock|wow/gi, "surpreso"],
+        [/apaixonad[oa]|amor|love|coração/gi, "amor"],
+        // Emoções negativas
+        [/triste|tristeza|choro|chorando|sad/gi, "triste"],
+        [/bravo|irritad[oa]|furioso|angry|odio/gi, "furioso"],
+        // Animais
+        [/cachorro|dog|cão|pet|cachorrinho/gi, "cachorro"],
+        [/gato|cat|felis|gatinho/gi, "gato"],
+        [/pássaro|bird|passarinho|pájaro/gi, "pássaro"],
+        // Esportes
+        [/futebol|soccer|gol|bola|tricolor|so Paulo/gi, "futebol"],
+        [/basquete|basket|arremesso|basquet/gi, "basquete"],
+        [/corrida|correndo|run|maratona/gi, "corrida"],
+        // Comida
+        [/comida|comendo|food|refeição|comendo/gi, "comida"],
+        [/pizza/gi, "pizza"],
+        [/hambúrguer|burger|hamburger/gi, "hambúrguer"],
+        // Situação
+        [/dormindo|sono|sleep|dormir/gi, "dormindo"],
+        [/trabalhando|work|trabalho|trabajando/gi, "trabalho"],
+        [/cozinhando|cozinheiro|cozinha/gi, "cozinha"],
+        // Celebridades/Cultura
+        [/scooby-doo|scooby|dogão/gi, "scooby doo"],
+        [/homer|simpsons|homero/gi, "simpsons"],
+        [/goku|dragon ball|dbz/gi, "goku"],
+    ];
+    
+    // Procurar termos no texto da análise
+    const analysisLower = analysis.toLowerCase();
+    
+    for (const [pattern, gifTerm] of termMappings) {
+        if (pattern.test(analysisLower)) {
+            return gifTerm;
+        }
+    }
+    
+    // Fallback: extrair primeiras palavras relevantes
+    const words = analysisLower.split(/\s+/)
+        .filter(w => w.length > 3)
+        .filter(w => !["uma", "isso", "essa", "este", "essa", "parece", "foto", "imagem", "pessoa", "objeto", "coisa", "pode", "ser", "muito", "tanto", "about", "some", "this", "that"].includes(w));
+    
+    if (words.length > 0) {
+        return words.slice(0, 2).join(" ");
+    }
+    
+    // Último fallback
+    return "reação";
+}
+
 // --- DEFINIÇÃO DAS FERRAMENTAS ---
 const tools: ChatCompletionTool[] = [
   {
@@ -190,17 +274,50 @@ const tools: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "send_gif",
-      description: "Busca e envia um GIF do Giphy. Use quando quiser enviar um GIF online. A ferramenta busca GIFs automaticamente, então você só precisa passar o tema/conceito do GIF desejado.",
+      description: `Busca e envia um GIF do Giphy (internet animada).
+
+ USE esta ferramenta quando:
+  - O usuário PEDIU explicitamente um GIF (ex: "manda um gif de parabéns", "me envia um gif engraçado")
+  - A análise de mídia ([Contexto da image...] ou [Contexto da audio...]) indica um tema ou emoção relevante
+  - Você quiser expressar uma reação/emoção que combine com o contexto da conversa
+
+ COMO ESCOLHER O TERMO DE BUSCA:
+  - Se houver [Pedido explícito do usuário], use os termos DO PEDIDO (limpos de comando)
+  - Se não houver pedido explícito, use termos da ANÁLISE DE MÍDIA:
+    * Análise diz "bolo de aniversário" → use "aniversário" ou "parabéns"
+    * Análise diz "pessoa rindo muito" → use "risada" ou "divertido"
+    * Análise diz "cachorro" → use "cachorro" ou "dog"
+    * Análise diz "futebol/gol" → use "futebol" ou "gol"
+    * Análise diz "triste/chorando" → use "triste" ou "choro"
+
+ DICAS IMPORTANTES:
+  - Use termos SIMPLES e ESPECÍFICOS (máximo 2-3 palavras)
+  - Português funciona, mas inglês costuma ter mais resultados disponíveis
+  - O rating do Giphy é "g" (para todos os públicos, até 16 anos) - evite temas adultos
+  - quantity=1 envia um GIF aleatório automático; quantity=2-5 retorna lista para você escolher`,
       parameters: {
         type: "object",
         properties: {
           search_query: {
             type: "string",
-            description: "O termo ou tema para buscar o GIF (ex: 'feliz aniversário', 'parabéns', 'risada', 'paixão', 'triste', 'flamengo'). Use termos em português ou inglês.",
+            description: `Termo ou tema para buscar o GIF (máximo 50 caracteres).
+
+ REGRAS DE PRIORIDADE:
+  1. Se existir [Pedido explícito do usuário], use os termos DO PEDIDO (após limpar comandos como "manda um gif de")
+  2. Se não houver pedido explícito, extraia termos principais da ANÁLISE DE MÍDIA
+  3. Use apenas keywords, NÃO frases completas
+
+ Exemplos de bons search_query:
+  - "aniversário", "parabéns", "feliz"
+  - "cachorro", "gato", "pet"
+  - "risada", "divertido", "kkk"
+  - "futebol", "gol", "tricolor"
+  - "triste", "choro", "sad"
+  - "parabéns", "celebração", "festa"`,
           },
           quantity: {
             type: "number",
-            description: "Quantos GIFs buscar (1 a 5). Se 1, envia um GIF aleatório dos resultados. Se mais, você receberá uma lista e poderá escolher qual enviar.",
+            description: "Quantos GIFs buscar (1 a 5). Padrão=1. Se 1, envia um GIF aleatório automaticamente. Se >1, você recebe lista e escolhe qual enviar.",
             minimum: 1,
             maximum: 5,
           },
@@ -368,7 +485,39 @@ try {
         } else if (functionName === 'send_gif' && functionArgs.search_query) {
           // Processar busca de GIF
           const quantity = Math.min(Math.max(functionArgs.quantity || 1, 1), 5);
-          const searchQuery = functionArgs.search_query;
+          let searchQuery = functionArgs.search_query;
+          
+          // Verificar se há contexto de mídia na mensagem mais recente
+          const lastMessage = recentMessages.length > 0 ? recentMessages[recentMessages.length - 1] : null;
+          const hasMediaContext = lastMessage?.content?.includes("[Contexto da") ?? false;
+          const hasExplicitRequest = lastMessage?.content?.includes("[Pedido explícito") ?? false;
+          
+          // Se a query for muito genérica E houver contexto de mídia, usar extração de termos
+          const genericQueries = ["reação", "gif", "reaction", "animação", "undefined", "null", ""];
+          if (hasMediaContext && genericQueries.includes(searchQuery.toLowerCase().trim())) {
+            // Extrair termos da análise de mídia
+            let mediaAnalysis = "";
+            let explicitRequest = "";
+            
+            if (lastMessage) {
+              // Extrair análise do contexto
+              const contextMatch = lastMessage.content.match(/\[Contexto da \w+[^:]+: ([^\]]+)\]/);
+              if (contextMatch) {
+                mediaAnalysis = contextMatch[1];
+              }
+              
+              // Extrair pedido explícito se existir
+              const requestMatch = lastMessage.content.match(/\[Pedido explícito do usuário: "([^"]+)"\]/);
+              if (requestMatch) {
+                explicitRequest = requestMatch[1];
+              }
+            }
+            
+            const extractedTerm = extractGifSearchTerms(mediaAnalysis, explicitRequest);
+            searchQuery = extractedTerm;
+            
+            beautifulLogger.info("GIF", `Termo genérico detectado. Extraindo termo: "${searchQuery}" (análise: "${mediaAnalysis}", pedido: "${explicitRequest}")`);
+          }
           
           beautifulLogger.info("GIF", `Buscando GIFs para: "${searchQuery}" (quantidade: ${quantity})`);
           

@@ -209,6 +209,7 @@ if (type === "audio" || type === "image") {
             
             // Se o usuário mandou uma legenda (pergunta), nós a adicionamos
             if (userCaption) {
+                // Adiciona mensagem do usuário
                 currentMessages.push({
                     content: `(${senderName}{userid: ${senderJid}}): ${userCaption} (junto com uma ${type})`,
                     name: senderName,
@@ -216,17 +217,27 @@ if (type === "audio" || type === "image") {
                     ia: false,
                     fromBot: false,
                 });
+                
+                // Contexto unificado: análise + legenda como pedido explícito
+                const contextMessage: Message = {
+                    content: `[Contexto da ${type} enviada por ${senderName}: ${analysisResult}]\n\n[Pedido explícito do usuário: "${userCaption}"]`,
+                    name: "Contexto",
+                    jid: "",
+                    ia: true,
+                    fromBot: false,
+                };
+                currentMessages.push(contextMessage);
+            } else {
+                // Se não houver legenda, mantém comportamento original
+                const contextMessage: Message = {
+                    content: `[Contexto da ${type} enviada por ${senderName}: ${analysisResult}]`,
+                    name: "Contexto",
+                    jid: "",
+                    ia: true,
+                    fromBot: false,
+                };
+                currentMessages.push(contextMessage);
             }
-            
-            // adicionamos a análise do Gemini como um "FATO" no chat.
-            const contextMessage: Message = { // Corrige a tipagem de Message[0] para Message
-              content: `[Contexto da ${type} enviada por ${senderName}: ${analysisResult}]`,
-              name: "Contexto",
-              jid: "",
-              ia: true,
-                            fromBot: false,
-            };
-            currentMessages.push(contextMessage);
 
             // Passamos os parâmetros de contexto para a processResponse
             setTimeout(() => processResponse(sessionId, currentMessages, isGroup), 1000);
