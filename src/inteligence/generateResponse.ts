@@ -283,16 +283,16 @@ const tools: ChatCompletionTool[] = [
 
 ❌ NÃO USE para responder perguntas como:
   - "o que é isso?", "que objeto é?", "o que aparece na foto?"
-  - Para perguntas, use `send_message`!
+  - Para perguntas, use \`send_message\`!
 
 EXEMPLOS DE USO CERTO:
-  - "manda um gif de parabéns" → send_gif("aniversário")
-  - usuário enviou foto de gato e disse "que fofo!" → send_gif("gato")
-  - usuário enviou foto de bolo de aniversário → send_gif("aniversário")
+  - "manda um gif de parabéns" → \`send_gif("aniversário")\`
+  - usuário enviou foto de gato e disse "que fofo!" → \`send_gif("gato")\`
+  - usuário enviou foto de bolo de aniversário → \`send_gif("aniversário")\`
 
 EXEMPLOS DE USO ERRADO:
-  - "o que é isso?" → send_gif("???") ❌
-  - "que objeto é esse?" → send_gif("construction") ❌
+  - "o que é isso?" → \`send_gif("???")\` ❌
+  - "que objeto é esse?" → \`send_gif("construction")\` ❌
 
 COMO ESCOLHER O TERMO DE BUSCA:
   - Se houver [Pedido explícito], use os termos DO PEDIDO
