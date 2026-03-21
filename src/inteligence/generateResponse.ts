@@ -69,25 +69,46 @@ const formatDataForPrompt = (data: SummaryData): string => {
 function extractGifSearchTerms(analysis: string, userRequest?: string): string {
     // Se houver pedido explícito, dar prioridade total a ele
     if (userRequest) {
-        // Limpar pedido explícito de GIF
-        const cleanRequest = userRequest
+        // Limpar pedido explícito de GIF e termos genéricos
+        let cleanRequest = userRequest
             .toLowerCase()
             .replace(/manda(?:ão)?(?: um)?(?: gif)? de[s]?/gi, "")
             .replace(/me envia(?: um)?(?: gif)? de/gi, "")
+            .replace(/me manda(?: um)?(?: gif)? de/gi, "")
             .replace(/gif de/gi, "")
             .replace(/gif do/gi, "")
             .replace(/quiero ver un gif de/gi, "")
             .replace(/want to see a gif of/gi, "")
             .replace(/can i see a gif of/gi, "")
+            .replace(/manda um gif da/gi, "")
+            .replace(/manda um gif do/gi, "")
+            .replace(/manda um gif da turma da monica/gi, "")
+            .replace(/manda um gif do cebolinha/gi, "")
+            .replace(/manda um gif da monica/gi, "")
             .trim();
+        
+        // Se o pedido for muito genérico, tentar extrair do contexto
+        if (cleanRequest.length < 3 || ["gif", "um gif", "um gif", "gifs", "um gif"].includes(cleanRequest)) {
+            cleanRequest = "";
+        }
         
         if (cleanRequest.length > 0 && cleanRequest.length < 50) {
             return cleanRequest;
         }
     }
     
+    // Se não houver pedido explícito válido, tentar extrair do contexto
     // Mapeamento de análise → termos de GIF
     const termMappings: [RegExp, string][] = [
+        // Personagens da Turma da Mônica (nomes corretos)
+        [/cebolinha|cebolinha|cebolinha/gi, "cebolinha"],
+        [/monica|mônica|monica/gi, "monica"],
+        [/magali|magali/gi, "magali"],
+        [/cleiton|cleiton/gi, "cleiton"],
+        [/francisco|chico/gi, "chico"],
+        [/bidu|bidu/gi, "bidu"],
+        [/cascao|cascao|cascao/gi, "cascao"],
+        [/turma da monica|turma da mônica/gi, "turma da monica"],
         // Aniversário e celebração
         [/aniversário|parabéns|bolo|velas|felicitações|celebração|festa/gi, "aniversário"],
         // Emoções positivas

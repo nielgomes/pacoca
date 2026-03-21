@@ -82,7 +82,13 @@ IMPORTANTÍSSIMO:
    - Você quiser expressar uma emoção/reação ao contexto (ex: ver foto de gato fofo → enviar GIF de gato)
    - Análise indica uma situação que merece reação animada
 
-3. **COMO EXTRAIR TERMOS (se decidir usar GIF):**
+3. **NÃO ENVIE MÚLTIPLOS GIFs:**
+   - Se o usuário pedir "manda um gif", envie APENAS 1 GIF (quantity=1)
+   - Se o usuário pedir "manda 3 gifs", envie APENAS 3 GIFs se houver contexto claro
+   - Se não houver contexto claro, envie APENAS 1 GIF genérico
+   - NUNCA envie mais de 3 GIFs sem motivo claro
+
+4. **COMO EXTRAIR TERMOS (se decidir usar GIF):**
    - Análise "bolo de aniversário" → "aniversário"
    - Análise "pessoa rindo muito" → "risada"
    - Análise "cachorro" → "cachorro"
