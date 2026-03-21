@@ -64,6 +64,9 @@ export async function executeActions(response: BotResponse, context: ActionConte
       onActionRecorded?.();
     },
   };
+  
+  // Adiciona memory ao toolContext
+  (toolContext as any).memory = memory;
 
   for (const action of response) {
     console.log(`🕵️ DEBUG: Processando ação do tipo: ${action.type}`);
