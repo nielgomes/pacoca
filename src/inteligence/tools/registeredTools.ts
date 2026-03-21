@@ -46,7 +46,7 @@ const send_existing_gif = createTool(
     altText: z.string().optional().describe("Texto alternativo"),
     pageUrl: z.string().url().optional().describe("URL da página do Giphy"),
     isMp4: z.boolean().optional().describe("Indica se é um vídeo MP4"),
-  }).strict(false), // Não estrito, permite campos extras
+  }).strip(), // Remove campos desconhecidos
   async (ctx, data: { url: string; title: string; altText?: string; pageUrl?: string; isMp4?: boolean }) => {
     const { url, title, isMp4 = false } = data;
     
