@@ -276,25 +276,36 @@ const tools: ChatCompletionTool[] = [
       name: "send_gif",
       description: `Busca e envia um GIF do Giphy (internet animada).
 
- USE esta ferramenta quando:
-  - O usuário PEDIU explicitamente um GIF (ex: "manda um gif de parabéns", "me envia um gif engraçado")
-  - A análise de mídia ([Contexto da image...] ou [Contexto da audio...]) indica um tema ou emoção relevante
-  - Você quiser expressar uma reação/emoção que combine com o contexto da conversa
+⚠️ IMPORTANTE: Use esta ferramenta APENAS para:
+  - Gifs que o usuário PEDIU explicitamente (ex: "manda um gif de parabéns", "me envia um gif engraçado")
+  - Reações/emojis animados a uma situação (ex: ver foto de gato → GIF de gato)
+  - Expressar emoções de forma animada
 
- COMO ESCOLHER O TERMO DE BUSCA:
-  - Se houver [Pedido explícito do usuário], use os termos DO PEDIDO (limpos de comando)
+❌ NÃO USE para responder perguntas como:
+  - "o que é isso?", "que objeto é?", "o que aparece na foto?"
+  - Para perguntas, use `send_message`!
+
+EXEMPLOS DE USO CERTO:
+  - "manda um gif de parabéns" → send_gif("aniversário")
+  - usuário enviou foto de gato e disse "que fofo!" → send_gif("gato")
+  - usuário enviou foto de bolo de aniversário → send_gif("aniversário")
+
+EXEMPLOS DE USO ERRADO:
+  - "o que é isso?" → send_gif("???") ❌
+  - "que objeto é esse?" → send_gif("construction") ❌
+
+COMO ESCOLHER O TERMO DE BUSCA:
+  - Se houver [Pedido explícito], use os termos DO PEDIDO
   - Se não houver pedido explícito, use termos da ANÁLISE DE MÍDIA:
-    * Análise diz "bolo de aniversário" → use "aniversário" ou "parabéns"
-    * Análise diz "pessoa rindo muito" → use "risada" ou "divertido"
-    * Análise diz "cachorro" → use "cachorro" ou "dog"
-    * Análise diz "futebol/gol" → use "futebol" ou "gol"
-    * Análise diz "triste/chorando" → use "triste" ou "choro"
+    * Análise diz "bolo de aniversário" → "aniversário"
+    * Análise diz "pessoa rindo muito" → "risada"
+    * Análise diz "cachorro" → "cachorro"
 
- DICAS IMPORTANTES:
+DICAS:
   - Use termos SIMPLES e ESPECÍFICOS (máximo 2-3 palavras)
-  - Português funciona, mas inglês costuma ter mais resultados disponíveis
-  - O rating do Giphy é "g" (para todos os públicos, até 16 anos) - evite temas adultos
-  - quantity=1 envia um GIF aleatório automático; quantity=2-5 retorna lista para você escolher`,
+  - Português funciona, mas inglês costuma ter mais resultados
+  - Rating "g" (até 16 anos)
+  - quantity=1 = aleatório; quantity=2-5 = você escolhe`,
       parameters: {
         type: "object",
         properties: {
