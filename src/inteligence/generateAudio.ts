@@ -24,6 +24,41 @@ import ffmpegPath from "ffmpeg-static";
 
 const execFileAsync = promisify(execFile);
 
+function normalizePtBrText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * Detecta pedidos explícitos para o Paçoca responder com a própria voz (TTS).
+ *
+ * A detecção é conservadora para evitar falsos positivos e não aumentar
+ * indevidamente a preferência por respostas em áudio.
+ */
+export function hasExplicitTtsRequest(userText: string): boolean {
+  if (!userText || userText.trim().length < 8) {
+    return false;
+  }
+
+  const text = normalizePtBrText(userText);
+
+  const explicitPatterns: RegExp[] = [
+    /responda?\s+com\s+a\s+sua\s+voz/,
+    /responde\s+com\s+a\s+sua\s+voz/,
+    /como\s+e\s+a\s+sua\s+voz/,
+    /quero\s+ouvir\s+a\s+sua\s+voz/,
+    /me\s+responda?\s+em\s+audio/,
+    /responde\s+em\s+audio/,
+    /em\s+audio\s+me\s+fale\s+sobre/,
+    /em\s+audio\s+me\s+responda?/,
+    /fala\s+(isso|sobre\s+isso|pra\s+mim)\s+em\s+audio/,
+  ];
+
+  return explicitPatterns.some((pattern) => pattern.test(text));
+}
+
 /**
  * Cria header WAV para dados PCM16
  */
@@ -440,11 +475,24 @@ export function shouldUseAudio(
   hasMedia: boolean,
   sessionId: string,
   recentMsgCount: number,
-  lastUserMessageType: "text" | "audio" | "image" = "text"
+  lastUserMessageType: "text" | "audio" | "image" = "text",
+  lastUserText: string = ""
 ): boolean {
   // Se houver mídia já escolhida, NÃO usa áudio
   if (hasMedia) {
     return false;
+  }
+
+  // Regra de override: se o usuário pediu explicitamente a voz do Paçoca,
+  // força TTS independentemente da heurística probabilística.
+  // Mantemos a checagem de mídia para evitar colisão com outras ações.
+  if (hasExplicitTtsRequest(lastUserText)) {
+    beautifulLogger.aiGeneration("audio_decision", {
+      reason: "explicit_tts_request",
+      decision: true,
+      lastUserMessageType,
+    });
+    return true;
   }
 
   // Se a última mensagem do usuário foi áudio, NÃO usa áudio do catálogo
@@ -516,6 +564,7 @@ export function shouldUseAudio(
     history: { ...history },
     recentMsgCount,
     lastUserMessageType,
+    explicitTtsRequest: hasExplicitTtsRequest(lastUserText),
   });
 
   return decision;
