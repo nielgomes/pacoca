@@ -8,7 +8,7 @@ import { searchGifs, pickRandomGif, getBestGifUrl, getBestGifMp4Url } from "../.
 import { generateAudioResponse } from "../generateAudio";
 import { findMediaPath } from "./executor";
 import { z } from "zod";
-import { SendMessageSchema, SendStickerSchema, SendAudioSchema, SendMemeImageSchema, CreatePollSchema, SendLocationSchema, SendContactSchema, SendGifSchema, GenerateAudioSchema, validateData } from "./schemas";
+import { SendMessageSchema, SendStickerSchema, SendAudioSchema, SendMemeImageSchema, CreatePollSchema, SendLocationSchema, SendContactSchema, SendGifSchema, SendExistingGifSchema, GenerateAudioSchema, validateData } from "./schemas";
 
 // Função auxiliar para criar tools
 function createTool<T>(
@@ -37,24 +37,12 @@ function createTool<T>(
 // --- TOOLS REGISTRADAS ---
 
 // --- Tool para enviar GIF já buscado (não busca novamente) ---
-// --- Tool para enviar GIF já buscado (não busca novamente) ---
-const send_existing_gif: RegisteredTool = {
-  name: "send_existing_gif",
-  description: "Envia um GIF já buscado (não busca novamente). Use quando o GIF já foi obtido.",
-  schema: {
-    type: "object",
-    properties: {
-      url: { type: "string", description: "URL do GIF/MP4 para envio" },
-      title: { type: "string", description: "Título do GIF" },
-      altText: { type: "string", description: "Texto alternativo" },
-      pageUrl: { type: "string", description: "URL da página do Giphy" },
-      isMp4: { type: "boolean", description: "Indica se é um vídeo MP4" },
-    },
-    required: ["url", "title"],
-  },
-  fn: async (ctx: ToolContext, ...args: any[]) => {
-    const data = args[0] || {};
-    const { url, title, isMp4 = false } = data;
+const send_existing_gif = createTool(
+  "send_existing_gif",
+  "Envia um GIF já buscado (não busca novamente). Use quando o GIF já foi obtido.",
+  SendExistingGifSchema,
+  async (ctx, data: { url: string; title: string; altText?: string; pageUrl?: string; isMp4?: boolean }) => {
+    const { url, title, isMp4 = false, pageUrl = '' } = data;
     
     try {
       await ctx.whatsapp.sendGif(ctx.sessionId, url, isMp4);
@@ -73,14 +61,14 @@ const send_existing_gif: RegisteredTool = {
           title,
           url,
           isMp4,
-          pageUrl: data.pageUrl || ''
+          pageUrl,
         } 
       };
     } catch (error: any) {
       return { success: false, error: `Falha ao enviar GIF: ${error.message}` };
     }
   }
-};
+);
 
 const send_message = createTool(
   "send_message",

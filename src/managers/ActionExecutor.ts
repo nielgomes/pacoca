@@ -123,8 +123,11 @@ export async function executeActions(response: BotResponse, context: ActionConte
         
       case 'gif':
         args = {
-          search_query: action.gif?.title || '',
-          quantity: 1,
+          url: action.gif?.url || '',
+          title: action.gif?.title || 'GIF',
+          altText: action.gif?.altText || action.gif?.title || '',
+          pageUrl: action.gif?.pageUrl || '',
+          isMp4: action.gif?.isMp4 || false,
         };
         break;
         

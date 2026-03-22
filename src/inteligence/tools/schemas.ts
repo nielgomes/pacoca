@@ -68,6 +68,17 @@ export const SendGifSchema = z.object({
 });
 
 /**
+ * Schema para send_existing_gif
+ */
+export const SendExistingGifSchema = z.object({
+  url: z.string().url().describe("URL direta do GIF/MP4 para envio."),
+  title: z.string().min(1).max(200).describe("Título do GIF."),
+  altText: z.string().max(500).optional().describe("Texto alternativo do GIF (opcional)."),
+  pageUrl: z.string().url().optional().describe("URL da página do Giphy (opcional)."),
+  isMp4: z.boolean().default(false).describe("Indica se a URL é de MP4."),
+});
+
+/**
  * Schema para generate_audio
  */
 export const GenerateAudioSchema = z.object({
@@ -85,6 +96,7 @@ export type CreatePollData = z.infer<typeof CreatePollSchema>;
 export type SendLocationData = z.infer<typeof SendLocationSchema>;
 export type SendContactData = z.infer<typeof SendContactSchema>;
 export type SendGifData = z.infer<typeof SendGifSchema>;
+export type SendExistingGifData = z.infer<typeof SendExistingGifSchema>;
 export type GenerateAudioData = z.infer<typeof GenerateAudioSchema>;
 
 // --- Funções de Validação ---
