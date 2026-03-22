@@ -419,8 +419,19 @@ export default class Whatsapp {
     const mimetype = isWav ? "audio/wav" : "audio/mpeg";
     
     try {
-      // Lê o arquivo como buffer (mais confiável que URL)
-      const audioBuffer = fs.readFileSync(filePath);
+      // Se não for WAV, converter para OGG (WhatsApp exige OGG/Opus para áudio)
+      let audioBuffer: Buffer;
+      let finalPath = filePath;
+      
+      if (!isWav) {
+        // Converter para OGG usando ffmpeg
+        const { convertAudioToOgg } = await import("../inteligence/generateAudio");
+        finalPath = await convertAudioToOgg(filePath);
+        audioBuffer = fs.readFileSync(finalPath);
+      } else {
+        // WAV já está no formato correto
+        audioBuffer = fs.readFileSync(filePath);
+      }
       
       const messageOptions: any = {
         audio: audioBuffer,
@@ -442,6 +453,12 @@ export default class Whatsapp {
         throw new Error("Envio de áudio retornou sem message id (possível falha silenciosa)");
       }
       console.log("🕵️ DEBUG [sendAudio]: Áudio enviado com buffer, tamanho:", audioBuffer.length);
+      
+      // Limpar arquivo convertido se foi criado
+      if (finalPath !== filePath && fs.existsSync(finalPath)) {
+        await fs.promises.unlink(finalPath);
+        console.log("🗑️  Arquivo temporário OGG removido:", finalPath);
+      }
     } catch (audioError) {
       console.error("🕵️ DEBUG [sendAudio]: Erro ao enviar áudio:", audioError);
       // Fallback: enviar como documento
