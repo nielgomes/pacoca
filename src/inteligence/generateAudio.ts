@@ -451,11 +451,11 @@ const audioHistory: Map<string, AudioHistoryEntry> = new Map();
  * 1. Se houver qualquer mídia já escolhida, nunca gera áudio.
  * 2. Se o texto for muito curto (<=60 chars), NÃO usa áudio (prefere mensagem de texto).
  * 3. Faixas de comprimento de texto determinam uma chance base de áudio:
- *    • 61–120      → 10%
+ *    • 61–120      → 15%
  *    • 121–180     → 25%
- *    • 181–230     → 40%
- *    • 231–249     → 15%
- *    • >=250       → 0% (fora do limite padrão)
+ *    • 181–230     → 50%
+ *    • 231–259     → 15%
+ *    • ≥260        → 0% (fora do limite padrão)
  * 4. Se a sessão gerou áudio nos últimos 3 disparos, o próximo tem 0%.
  * 5. Se o último áudio foi há menos de 5 minutos, a chance base é reduzida a
  *    20% do original.
@@ -521,11 +521,11 @@ export function shouldUseAudio(
   if (textLength <= 60) {
     baseChance = 0;
   } else if (textLength <= 120) {
-    baseChance = 0.1;
+    baseChance = 0.15;
   } else if (textLength <= 180) {
     baseChance = 0.25;
   } else if (textLength <= 230) {
-    baseChance = 0.4;
+    baseChance = 0.5;
   } else if (textLength < AUDIO_VOICE_CONFIG.AUDIO_TEXT_LIMIT) {
     baseChance = 0.15;
   }

@@ -75,5 +75,5 @@ export const AUDIO_VOICE_CONFIG = {
   MAX_TOKENS: 500,
   
   /** Limite de caracteres para decidir entre áudio ou texto */
-  AUDIO_TEXT_LIMIT: 250,
+  AUDIO_TEXT_LIMIT: 260,
 } as const;
